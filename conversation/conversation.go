@@ -72,7 +72,7 @@ func (conversation *Conversation) GetAnswer(question string) (string, error) {
 		fmt.Println(err)
 		return "", err
 	}
-	answer := jsonObject.S("choices", "0", "text").Data()
+	answer := jsonObject.S("choices", "*", "text").Data()
 	conversation.SentenceList.PushBack(answer.(string))
 	return answer.(string), nil
 }
