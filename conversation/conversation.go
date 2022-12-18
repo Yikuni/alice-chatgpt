@@ -8,6 +8,7 @@ import (
 	"github.com/Jeffail/gabs/v2"
 	"os"
 	"strings"
+	"time"
 )
 
 var Key string
@@ -27,6 +28,7 @@ type Conversation struct {
 	Prompt       string     // prompt
 	SentenceList *list.List // 对话表, 偶数是人类
 	AIAnswered   bool       // AI是否完成回复
+	LastModify   int64      // 上次回复的时间戳
 }
 
 type ChatgptRequest struct {
@@ -48,13 +50,16 @@ func (conversation *Conversation) GetAnswer(question string) (string, error) {
 	request := ChatgptRequest{
 		Model:            "text-davinci-003",
 		Prompt:           conversation.PlainText() + "\nAI: ",
-		MaxTokens:        150,
+		MaxTokens:        10000,
 		TopP:             1,
 		FrequencyPenalty: 0,
 		PresencePenalty:  0.6,
 		Temperature:      0.9}
 	jsonString, err := json.Marshal(&request)
-	defer func() { conversation.AIAnswered = true }()
+	defer func() {
+		conversation.AIAnswered = true
+		conversation.LastModify = time.Now().Unix()
+	}()
 	if err != nil {
 		conversation.SentenceList.Remove(conversation.SentenceList.Back())
 		fmt.Println(err)
@@ -72,13 +77,23 @@ func (conversation *Conversation) GetAnswer(question string) (string, error) {
 		fmt.Println(err)
 		return "", err
 	}
-	answer := jsonObject.S("choices", "*", "text").Data()
-	conversation.SentenceList.PushBack(answer.(string))
-	return answer.(string), nil
+	fmt.Println(jsonObject.Data())
+	answers := jsonObject.S("choices", "*", "text")
+	fmt.Println(answers.String())
+	answer := strings.Builder{}
+	children := answers.Children()
+	for i := range children {
+		answer.WriteString(children[i].String())
+		fmt.Printf("i = %d, answer = %s\n", i, children[i].String())
+	}
+	answerString := answer.String()
+	fmt.Printf("result: %s", answerString)
+	conversation.SentenceList.PushBack(answerString)
+	return answerString, nil
 }
 
 func CreateConversation(prompt string) *Conversation {
-	return &Conversation{prompt, list.New(), true}
+	return &Conversation{prompt, list.New(), true, time.Now().Unix()}
 }
 
 func CreateDefaultConversation() *Conversation {

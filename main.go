@@ -7,25 +7,43 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"io"
+	"time"
 )
 
 var (
 	idLength        = 8
 	token           string
 	conversationMap = make(map[string]*conversation.Conversation, 20)
+	p               string
 )
 
 func main() {
 	flag.StringVar(&token, "t", "alice", "verify token")
+	flag.StringVar(&p, "p", "7777", "port")
 	app := gin.Default()
 	app.POST("/chatgpt/create", create)
 	app.POST("/chatgpt/chat", chat)
 	app.POST("/chatgpt/context", context)
 	app.POST("/chatgpt/finish", finish)
-	err := app.Run(":7777")
+	err := app.Run(":" + p)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
+	// 删除长时间没有使用的聊天
+	go func() {
+		for {
+			time.Sleep(time.Minute * 30)
+			now := time.Now().Unix()
+			for k, v := range conversationMap {
+				// 如果一定时间内没使用
+				if now-v.LastModify > 1200 {
+					delete(conversationMap, k)
+					fmt.Printf("Conversation with id: %s expired", k)
+				}
+			}
+		}
+	}()
 }
 
 func verify(c *gin.Context) bool {
