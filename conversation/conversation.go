@@ -16,9 +16,9 @@ var Key string
 func init() {
 	fileBytes, err := os.ReadFile("key.txt")
 	if err != nil {
-		fmt.Println("Failed to Read key: key.txt")
+		fmt.Println("Failed to Read key from key.txt")
 		fmt.Println(err.Error())
-		return
+		os.Exit(0)
 	}
 	Key = string(fileBytes)
 
