@@ -50,7 +50,7 @@ func (conversation *Conversation) GetAnswer(question string) (string, error) {
 	request := ChatgptRequest{
 		Model:            "text-davinci-003",
 		Prompt:           conversation.PlainText() + "\nAI: ",
-		MaxTokens:        10000,
+		MaxTokens:        500,
 		TopP:             1,
 		FrequencyPenalty: 0,
 		PresencePenalty:  0.6,

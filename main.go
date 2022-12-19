@@ -128,7 +128,11 @@ func chat(c *gin.Context) {
 	body := string(bodyBytes)
 	answer, err := conv.GetAnswer(body)
 	if err != nil {
-		c.String(500, err.Error())
+		errorMessage := err.Error()
+		if errorMessage == "" {
+			errorMessage = "exceeded max tokens"
+		}
+		c.String(500, errorMessage)
 		return
 	}
 	c.String(200, answer)
