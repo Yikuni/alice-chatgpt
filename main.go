@@ -3,6 +3,7 @@ package main
 import (
 	"alice-chatgpt/conversation"
 	"alice-chatgpt/util"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,7 @@ func main() {
 	app.POST("/chatgpt/chat", chat)
 	app.POST("/chatgpt/context", context)
 	app.POST("/chatgpt/finish", finish)
+	app.POST("/chatgpt/contextArray", contextArray)
 	err := app.Run(":" + p)
 	if err != nil {
 		fmt.Println(err)
@@ -148,4 +150,20 @@ func finish(c *gin.Context) {
 	}
 	delete(conversationMap, c.GetHeader("conversation"))
 	c.String(200, "Conversation finished")
+}
+
+func contextArray(c *gin.Context) {
+	if !verify(c) {
+		return
+	}
+	conv := getConversation(c)
+	if conv == nil {
+		return
+	}
+	result, err := json.Marshal(&conv.SentenceList)
+	if err != nil {
+		c.String(500, err.Error())
+		return
+	}
+	c.String(200, string(result))
 }
