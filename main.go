@@ -38,8 +38,9 @@ func main() {
 			time.Sleep(time.Minute * 30)
 			now := time.Now().Unix()
 			for k, v := range conversationMap {
-				// 如果一定时间内没使用
-				if now-v.LastModify > 1200 {
+				// 如果一定时间内没使用, 或者5分钟内仍然只有2句话
+				duration := now - v.LastModify
+				if duration > 1200 || duration > 300 && v.SentenceList.Len() <= 2 {
 					delete(conversationMap, k)
 					fmt.Printf("Conversation with id: %s expired", k)
 				}
