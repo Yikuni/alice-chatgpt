@@ -31,6 +31,13 @@ type Conversation struct {
 	LastModify   int64      // 上次回复的时间戳
 }
 
+// CStorage :Conversation存储形式
+type CStorage struct {
+	Id           string
+	Prompt       string   // prompt
+	SentenceList []string // 对话表, 偶数是人类
+}
+
 type ChatgptRequest struct {
 	Model            string  `json:"model"`
 	Prompt           string  `json:"prompt"`
@@ -115,4 +122,33 @@ func (conversation *Conversation) PlainText() string {
 		index++
 	}
 	return builder.String()
+}
+
+func (conversation *Conversation) ToCStorage(id string) *CStorage {
+	sentences := make([]string, conversation.SentenceList.Len())
+	i := 0
+	for element := conversation.SentenceList.Front(); element != nil; element = element.Next() {
+		sentences[i] = element.Value.(string)
+		i++
+	}
+	return &CStorage{id, conversation.Prompt, sentences}
+}
+
+// ToJsonBytes 转换为json byte
+func (cStorage *CStorage) ToJsonBytes() ([]byte, error) {
+	return json.Marshal(&cStorage)
+}
+
+// FromJsonBytes 通过jsonBytes获得CStorage对象
+func FromJsonBytes(marshal []byte) (*CStorage, error) {
+	jsonObj, err := gabs.ParseJSON(marshal)
+	if err != nil {
+		return nil, err
+	}
+	children := jsonObj.S("SentenceList").Children()
+	sentences := make([]string, len(children))
+	for i, sentence := range children {
+		sentences[i] = sentence.String()
+	}
+	return &CStorage{jsonObj.S("Id").String(), jsonObj.S("Prompt").String(), sentences}, nil
 }

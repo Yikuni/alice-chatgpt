@@ -2,6 +2,7 @@ package main
 
 import (
 	"alice-chatgpt/conversation"
+	"alice-chatgpt/dao"
 	"alice-chatgpt/util"
 	"encoding/json"
 	"flag"
@@ -16,22 +17,21 @@ var (
 	token           string
 	conversationMap = make(map[string]*conversation.Conversation, 20)
 	p               string
+	db              string
+	daoInstance     dao.Dao
 )
 
 func main() {
 	flag.StringVar(&token, "t", "alice", "verify token")
 	flag.StringVar(&p, "p", "7777", "port")
+	flag.StringVar(&db, "db", "badger", "database url; use badger if undefined")
 	app := gin.Default()
 	app.POST("/chatgpt/create", create)
 	app.POST("/chatgpt/chat", chat)
 	app.POST("/chatgpt/context", context)
 	app.POST("/chatgpt/finish", finish)
 	app.POST("/chatgpt/contextArray", contextArray)
-	err := app.Run(":" + p)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+
 	// 删除长时间没有使用的聊天
 	go func() {
 		for {
@@ -47,6 +47,36 @@ func main() {
 			}
 		}
 	}()
+	dbEnabled := false
+	if db == "badger" {
+		daoInstance = &dao.BadgerDao{}
+	} else {
+		// TODO Add mysql support
+	}
+	dbError := daoInstance.InitDatabase()
+	if dbError != nil {
+		fmt.Println(dbError.Error())
+	} else {
+		dbEnabled = true
+	}
+	if dbEnabled {
+		app.GET("/chatgpt/share/:id", sharedContext)
+		app.POST("/chatgpt/store", store)
+		defer func() {
+			err := daoInstance.Close()
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+		}()
+	} else {
+		fmt.Println("Running without database!")
+	}
+
+	err := app.Run(":" + p)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 }
 
 func verify(c *gin.Context) bool {
@@ -167,4 +197,37 @@ func contextArray(c *gin.Context) {
 		return
 	}
 	c.String(200, string(result))
+}
+
+// 保存会话, 用于分享
+func store(c *gin.Context) {
+	if !verify(c) {
+		return
+	}
+	conv := getConversation(c)
+	if conv == nil {
+		return
+	}
+	cStorage := conv.ToCStorage(c.GetHeader("conversation"))
+	err := daoInstance.Save(cStorage)
+	if err != nil {
+		c.String(500, err.Error())
+		return
+	}
+	c.String(200, "保存成功")
+}
+
+// 获取分享的会话
+func sharedContext(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.String(400, "Bad Request")
+		return
+	}
+	cStorage := daoInstance.Search(id)
+	if cStorage == nil {
+		c.String(500, "Failed to find shared conversation with provided id")
+		return
+	}
+	c.JSON(200, cStorage)
 }
