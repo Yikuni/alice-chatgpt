@@ -138,7 +138,7 @@ func FromJsonBytes(marshal []byte) (*CStorage, error) {
 	children := jsonObj.S("SentenceList").Children()
 	sentences := make([]string, len(children))
 	for i, sentence := range children {
-		sentences[i] = sentence.String()
+		sentences[i] = sentence.Data().(string)
 	}
 	return &CStorage{jsonObj.S("Id").Data().(string), jsonObj.S("Prompt").Data().(string), sentences}, nil
 }
