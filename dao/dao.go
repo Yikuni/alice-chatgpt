@@ -17,7 +17,7 @@ type BadgerDao struct {
 }
 
 func (dao *BadgerDao) InitDatabase() error {
-	db, err := badger.Open(badger.DefaultOptions("/data"))
+	db, err := badger.Open(badger.DefaultOptions("./data"))
 	if err != nil {
 		return err
 	}
