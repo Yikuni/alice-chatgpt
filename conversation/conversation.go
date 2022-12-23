@@ -84,19 +84,9 @@ func (conversation *Conversation) GetAnswer(question string) (string, error) {
 		fmt.Println(err)
 		return "", err
 	}
-	fmt.Println(jsonObject.Data())
-	answers := jsonObject.S("choices", "*", "text")
-	fmt.Println(answers.String())
-	answer := strings.Builder{}
-	children := answers.Children()
-	for i := range children {
-		answer.WriteString(children[i].String())
-		fmt.Printf("i = %d, answer = %s\n", i, children[i].String())
-	}
-	answerString := answer.String()
-	fmt.Printf("result: %s", answerString)
-	conversation.SentenceList.PushBack(answerString)
-	return answerString, nil
+	answer := jsonObject.S("choices", "0", "text").Data().(string)
+	conversation.SentenceList.PushBack(answer)
+	return answer, nil
 }
 
 func CreateConversation(prompt string) *Conversation {
@@ -150,5 +140,5 @@ func FromJsonBytes(marshal []byte) (*CStorage, error) {
 	for i, sentence := range children {
 		sentences[i] = sentence.String()
 	}
-	return &CStorage{jsonObj.S("Id").String(), jsonObj.S("Prompt").String(), sentences}, nil
+	return &CStorage{jsonObj.S("Id").Data().(string), jsonObj.S("Prompt").Data().(string), sentences}, nil
 }
