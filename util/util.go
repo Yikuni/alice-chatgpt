@@ -1,6 +1,7 @@
 package util
 
 import (
+	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
@@ -18,7 +19,15 @@ func PostHeader(url string, msg []byte, headers map[string]string) (string, erro
 		req.Header.Set(key, header)
 	}
 	response, err := client.Do(req)
-	defer response.Body.Close()
+	if err != nil {
+		return "", err
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+	}(response.Body)
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return "", err
