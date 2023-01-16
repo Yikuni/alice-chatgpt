@@ -4,9 +4,11 @@ import (
 	"alice-chatgpt/conversation"
 	"alice-chatgpt/dao"
 	"alice-chatgpt/util"
+	"container/list"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/Jeffail/gabs/v2"
 	"github.com/gin-gonic/gin"
 	"io"
 	"time"
@@ -31,6 +33,7 @@ func main() {
 	app.POST("/chatgpt/context", context)
 	app.POST("/chatgpt/finish", finish)
 	app.POST("/chatgpt/contextArray", contextArray)
+	app.POST("/chatgpt/quickAnswer", quickAnswer)
 
 	// 删除长时间没有使用的聊天
 	go func() {
@@ -160,6 +163,39 @@ func chat(c *gin.Context) {
 	}
 	body := string(bodyBytes)
 	answer, err := conv.GetAnswer(body)
+	if err != nil {
+		errorMessage := err.Error()
+		if errorMessage == "" {
+			errorMessage = "exceeded max tokens"
+		}
+		c.String(500, errorMessage)
+		return
+	}
+	c.String(200, answer)
+}
+
+func quickAnswer(c *gin.Context) {
+	if !verify(c) {
+		return
+	}
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.String(500, err.Error())
+		return
+	}
+	jsonContainer, err := gabs.ParseJSON(bodyBytes)
+	if err != nil {
+		c.String(500, err.Error())
+		return
+	}
+	prompt := jsonContainer.S("prompt").Data().(string)
+	question := jsonContainer.S("question").Data().(string)
+	examples := list.New()
+	for _, container := range jsonContainer.S("examples", "*").Children() {
+		examples.PushBack(container.Data().(string))
+	}
+	conv := conversation.CreateQuickConversation(prompt, examples)
+	answer, err := conv.GetAnswer(question)
 	if err != nil {
 		errorMessage := err.Error()
 		if errorMessage == "" {

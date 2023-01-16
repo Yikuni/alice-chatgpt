@@ -27,7 +27,10 @@ func init() {
 	}
 	for i := range Keys {
 		if i != len(Keys)-1 {
-			Keys[i] = Keys[i][:len(Keys[i])-1]
+			last := Keys[i][len(Keys[i])-1]
+			if last == '\n' {
+				Keys[i] = Keys[i][:len(Keys[i])-1]
+			}
 		}
 	}
 }
@@ -56,14 +59,18 @@ type ChatgptRequest struct {
 	PresencePenalty  float32 `json:"presence_penalty"`
 }
 
-func (conversation *Conversation) GetAnswer(question string) (string, error) {
+func Key() string {
 	key := Keys[times%len(Keys)]
 	times++
+	return key
+}
+
+func (conversation *Conversation) GetAnswer(question string) (string, error) {
 	conversation.AIAnswered = false
 	conversation.SentenceList.PushBack(question)
 	headers := make(map[string]string, 2)
 	headers["Content-Type"] = "application/json"
-	headers["Authorization"] = "Bearer " + key
+	headers["Authorization"] = "Bearer " + Key()
 	request := ChatgptRequest{
 		Model:            "text-davinci-003",
 		Prompt:           conversation.PlainText() + "\nAI: ",
@@ -101,6 +108,10 @@ func (conversation *Conversation) GetAnswer(question string) (string, error) {
 
 func CreateConversation(prompt string) *Conversation {
 	return &Conversation{prompt, list.New(), true, time.Now().Unix()}
+}
+
+func CreateQuickConversation(prompt string, sentenceList *list.List) *Conversation {
+	return &Conversation{prompt, sentenceList, true, time.Now().Unix()}
 }
 
 func CreateDefaultConversation() *Conversation {
