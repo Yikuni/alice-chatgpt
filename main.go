@@ -34,6 +34,7 @@ func main() {
 	app.POST("/chatgpt/finish", finish)
 	app.POST("/chatgpt/contextArray", contextArray)
 	app.POST("/chatgpt/quickAnswer", quickAnswer)
+	app.POST("/chatgpt/summary", summary)
 
 	// 删除长时间没有使用的聊天
 	go func() {
@@ -162,7 +163,7 @@ func chat(c *gin.Context) {
 		return
 	}
 	body := string(bodyBytes)
-	answer, err := conv.GetAnswer(body)
+	answer, err := conv.GetAnswer(body, conversation.DefaultSettings)
 	if err != nil {
 		errorMessage := err.Error()
 		if errorMessage == "" {
@@ -195,7 +196,7 @@ func quickAnswer(c *gin.Context) {
 		examples.PushBack(container.Data().(string))
 	}
 	conv := conversation.CreateQuickConversation(prompt, examples)
-	answer, err := conv.GetAnswer(question)
+	answer, err := conv.GetAnswer(question, conversation.QuickChatSettings)
 	if err != nil {
 		errorMessage := err.Error()
 		if errorMessage == "" {
@@ -266,4 +267,27 @@ func sharedContext(c *gin.Context) {
 		return
 	}
 	c.JSON(200, cStorage)
+}
+
+func summary(c *gin.Context) {
+	if !verify(c) {
+		return
+	}
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.String(500, err.Error())
+		return
+	}
+	article := string(bodyBytes)
+	article += "\nTl;dr\n"
+	answer, err := conversation.SendDirectly(article, conversation.SummarySettings)
+	if err != nil {
+		errorMessage := err.Error()
+		if errorMessage == "" {
+			errorMessage = "exceeded max tokens"
+		}
+		c.String(500, errorMessage)
+		return
+	}
+	c.String(200, answer)
 }

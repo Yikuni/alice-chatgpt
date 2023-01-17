@@ -11,8 +11,34 @@ import (
 	"time"
 )
 
-var Keys []string
-var times = 0
+var (
+	Keys            []string
+	times           = 0
+	DefaultSettings = RequestSettings{
+		Model:            "text-davinci-003",
+		MaxTokens:        500,
+		TopP:             1,
+		FrequencyPenalty: 0,
+		PresencePenalty:  0.6,
+		Temperature:      0.9,
+	}
+	QuickChatSettings = RequestSettings{
+		Model:            "text-davinci-003",
+		MaxTokens:        3500,
+		TopP:             1,
+		FrequencyPenalty: 0,
+		PresencePenalty:  0.6,
+		Temperature:      0.9,
+	}
+	SummarySettings = RequestSettings{
+		Model:            "text-davinci-003",
+		MaxTokens:        2048,
+		TopP:             1,
+		FrequencyPenalty: 0,
+		PresencePenalty:  1,
+		Temperature:      0.7,
+	}
+)
 
 func init() {
 	fileBytes, err := os.ReadFile("key.txt")
@@ -48,15 +74,18 @@ type CStorage struct {
 	Prompt       string   // prompt
 	SentenceList []string // 对话表, 偶数是人类
 }
-
-type ChatgptRequest struct {
+type RequestSettings struct {
 	Model            string  `json:"model"`
-	Prompt           string  `json:"prompt"`
 	MaxTokens        int     `json:"max_tokens"`
 	Temperature      float32 `json:"temperature"`
 	TopP             int     `json:"top_p"`
 	FrequencyPenalty float32 `json:"frequency_penalty"`
 	PresencePenalty  float32 `json:"presence_penalty"`
+}
+
+type ChatgptRequest struct {
+	RequestSettings
+	Prompt string `json:"prompt"`
 }
 
 func Key() string {
@@ -65,20 +94,47 @@ func Key() string {
 	return key
 }
 
-func (conversation *Conversation) GetAnswer(question string) (string, error) {
+func SendDirectly(prompt string, settings RequestSettings) (string, error) {
+	// 构造请求头
+	headers := make(map[string]string, 2)
+	headers["Content-Type"] = "application/json"
+	headers["Authorization"] = "Bearer " + Key()
+	// 请求体, 转化为bytes
+	request := ChatgptRequest{
+		Prompt:          prompt,
+		RequestSettings: settings,
+	}
+	jsonString, err := json.Marshal(&request)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	// 发送请求
+	result, err := util.PostHeader("https://api.openai.com/v1/completions", jsonString, headers)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	// 处理请求, 获得文字结果
+	jsonObject, err := gabs.ParseJSON([]byte(result))
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	fmt.Println(jsonObject.String())
+	answer := jsonObject.S("choices", "0", "text").Data().(string)
+	return answer, nil
+}
+func (conversation *Conversation) GetAnswer(question string, settings RequestSettings) (string, error) {
 	conversation.AIAnswered = false
 	conversation.SentenceList.PushBack(question)
 	headers := make(map[string]string, 2)
 	headers["Content-Type"] = "application/json"
 	headers["Authorization"] = "Bearer " + Key()
 	request := ChatgptRequest{
-		Model:            "text-davinci-003",
-		Prompt:           conversation.PlainText() + "\nAI: ",
-		MaxTokens:        500,
-		TopP:             1,
-		FrequencyPenalty: 0,
-		PresencePenalty:  0.6,
-		Temperature:      0.9}
+		Prompt:          conversation.PlainText() + "\nAI: ",
+		RequestSettings: settings,
+	}
 	jsonString, err := json.Marshal(&request)
 	defer func() {
 		conversation.AIAnswered = true
