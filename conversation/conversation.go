@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"alice-chatgpt/ChatgptError"
 	"alice-chatgpt/util"
 	"container/list"
 	"encoding/json"
@@ -157,7 +158,11 @@ func (conversation *Conversation) GetAnswer(question string, settings RequestSet
 		fmt.Println(err)
 		return "", err
 	}
-	answer := jsonObject.S("choices", "0", "text").Data().(string)
+	answerData := jsonObject.S("choices", "0", "text").Data()
+	if answerData == nil {
+		return "", ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
+	}
+	answer := answerData.(string)
 	conversation.SentenceList.PushBack(answer)
 	return answer, nil
 }
