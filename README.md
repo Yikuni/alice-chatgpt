@@ -8,6 +8,12 @@
 
 这是一个用go语言实现的chatgpt接口, 通过该接口, 仅一个简单的http请求就可以开启与chatgpt AI的对话
 
+## 亮点
+
+- 方便的api
+- 支持多个key
+- 轻量级,占用内存小, 闲置时仅占用50MB
+
 ## 下载和安装
 
 ### 方式1
@@ -22,16 +28,26 @@
 
 运行Alice Chatgpt需要使用chatgpt的key
 
+支持多个key
+
 ### 配置方法
 
-在可执行文件同一个目录下创建key.txt,每一行放一个key
+在可执行文件同一个目录下创建key.txt,每一行放一个key, 最后一个key后不要换行
 
 ## 启动方式和参数
 
 ### Linux
 
+#### 前台运行
+
 ``` sh
-./alice_chatgpt_linux -p 端口(默认7777) -t token(默认alice)
+./alice_chatgpt
+```
+
+#### 后台运行
+
+``` sh
+nohup ./alice_chatgpt > Log.log &
 ```
 
 ### Windows
@@ -39,12 +55,23 @@
 #### 指令启动
 
 ``` sh
-alice_chatgpt.exe -p 端口(默认7777) -t token(默认alice)
+alice_chatgpt.exe
 ```
 
 #### 双击启动
 
 直接双击, 使用默认端口和token
+
+### 启动参数说明
+
+- p	port	默认7777
+- t     token 默认alice
+- a    是否自动移除无法使用的key(true/false) 默认false
+- l     limit 每分钟chatgpt api限流
+
+## 常见问题
+
+如有问题请在github发issue
 
 ## 接口文档
 
@@ -419,7 +446,7 @@ Failed to find shared conversation with provided id
 | 参数名   | 示例值                                                       | 参数类型 | 是否必填 | 参数描述                               |
 | -------- | ------------------------------------------------------------ | -------- | -------- | -------------------------------------- |
 | prompt   | The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly. | String   | 是       | 设定                                   |
-| examples | 今天天气晴朗,我在公园漫步,看到绿色植物,心情愉悦。请将上文改编成一首诗 | Array    | 是       | 例子,奇数为人类的问题,偶数为AI回答示例 |
+| examples | [  <br/>      "今天天气晴朗,我在公园漫步,看到绿色植物,心情愉悦。请将上文改编成一首诗",<br/>        "春光洒满天堂， 公园青色荫蔽； 绿叶湖边绰绰， 心情一片悦乐。"   <br/> ] | Array    | 是       | 例子,奇数为人类的问题,偶数为AI回答示例 |
 | question | 今天去看日出,心情愉悦。请将上文改编成一首诗。                | String   | 是       | 问题                                   |
 
 #### 预执行脚本
