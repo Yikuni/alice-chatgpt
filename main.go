@@ -29,7 +29,7 @@ func main() {
 	flag.StringVar(&token, "t", "alice", "verify token")
 	flag.StringVar(&p, "p", "7777", "port")
 	flag.StringVar(&db, "db", "badger", "database url; use badger if undefined, now support only badger")
-	flag.BoolVar(&flgs.AutoRemoveErrorKeys, "a", false, "auto remove key when key is above the quota")
+	flag.BoolVar(&flgs.AutoRemoveErrorKeys, "a", true, "auto remove key when key is above the quota")
 	flag.IntVar(&flgs.LimitPerMin, "l", 500, "limit usage per minute")
 	app := gin.Default()
 	app.POST("/chatgpt/create", create)

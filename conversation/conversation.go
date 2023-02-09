@@ -55,9 +55,15 @@ func init() {
 	}
 	for i := range Keys {
 		if i != len(Keys)-1 {
-			last := Keys[i][len(Keys[i])-1]
+			index := len(Keys[i]) - 1
+			if index <= 0 {
+				Keys = append(Keys[:i], Keys[i+1:]...)
+				continue
+			}
+			last := Keys[i][index]
 			if last == '\n' {
 				Keys[i] = Keys[i][:len(Keys[i])-1]
+				fmt.Printf("Loaded Key: %s\n", Keys[i])
 			}
 		}
 	}
@@ -99,6 +105,7 @@ func Key() string {
 func SendDirectly(prompt string, settings RequestSettings) (string, error) {
 	// 构造请求头
 	key := Key()
+	fmt.Println("key is : " + key)
 	headers := make(map[string]string, 2)
 	headers["Content-Type"] = "application/json"
 	headers["Authorization"] = "Bearer " + key
@@ -115,6 +122,9 @@ func SendDirectly(prompt string, settings RequestSettings) (string, error) {
 	// 发送请求
 	result, err := util.PostHeader("https://api.openai.com/v1/completions", jsonString, headers)
 	if err != nil {
+		if err.Error() == "Post \"https://api.openai.com/v1/completions\": net/http: invalid header field value for \"Authorization\"" && flgs.AutoRemoveErrorKeys {
+			findAndRemoveKey(key)
+		}
 		fmt.Println(err)
 		return "", err
 	}
@@ -127,6 +137,7 @@ func SendDirectly(prompt string, settings RequestSettings) (string, error) {
 	fmt.Println(jsonObject.String())
 	answerData := jsonObject.S("choices", "0", "text").Data()
 	if answerData == nil {
+		err := ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
 		fmt.Println(err)
 		switch err.(type) {
 		case ChatgptError.ExceededQuotaException:
@@ -134,8 +145,7 @@ func SendDirectly(prompt string, settings RequestSettings) (string, error) {
 				findAndRemoveKey(key)
 			}
 		}
-
-		return "", ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
+		return "", err
 	}
 	answer := answerData.(string)
 	return answer, nil
@@ -144,9 +154,10 @@ func (conversation *Conversation) GetAnswer(question string, settings RequestSet
 	conversation.AIAnswered = false
 	conversation.SentenceList.PushBack(question)
 	key := Key()
+	header := "Bearer " + key
 	headers := make(map[string]string, 2)
 	headers["Content-Type"] = "application/json"
-	headers["Authorization"] = "Bearer " + key
+	headers["Authorization"] = header
 	request := ChatgptRequest{
 		Prompt:          conversation.PlainText() + "\nAI: ",
 		RequestSettings: settings,
@@ -164,6 +175,9 @@ func (conversation *Conversation) GetAnswer(question string, settings RequestSet
 	result, err := util.PostHeader("https://api.openai.com/v1/completions", jsonString, headers)
 	if err != nil {
 		conversation.SentenceList.Remove(conversation.SentenceList.Back())
+		if err.Error() == "Post \"https://api.openai.com/v1/completions\": net/http: invalid header field value for \"Authorization\"" && flgs.AutoRemoveErrorKeys {
+			findAndRemoveKey(key)
+		}
 		fmt.Println(err)
 		return "", err
 	}
@@ -176,15 +190,15 @@ func (conversation *Conversation) GetAnswer(question string, settings RequestSet
 	answerData := jsonObject.S("choices", "0", "text").Data()
 	if answerData == nil {
 		conversation.SentenceList.Remove(conversation.SentenceList.Back())
-		fmt.Println(err)
+		err := ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
+		fmt.Println(err.Error())
 		switch err.(type) {
 		case ChatgptError.ExceededQuotaException:
 			if flgs.AutoRemoveErrorKeys {
 				findAndRemoveKey(key)
 			}
 		}
-
-		return "", ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
+		return "", err
 	}
 	answer := answerData.(string)
 	conversation.SentenceList.PushBack(answer)
@@ -252,6 +266,7 @@ func FromJsonBytes(marshal []byte) (*CStorage, error) {
 func findAndRemoveKey(key string) {
 	for i := range Keys {
 		if Keys[i] == key {
+			fmt.Printf("Key is not available and has been removed: %s\n", Keys[i])
 			Keys = append(Keys[:i], Keys[i+1:]...)
 			return
 		}
