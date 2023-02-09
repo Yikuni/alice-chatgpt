@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"alice-chatgpt/ChatgptError"
+	flgs "alice-chatgpt/flags"
 	"alice-chatgpt/util"
 	"container/list"
 	"encoding/json"
@@ -129,7 +130,9 @@ func SendDirectly(prompt string, settings RequestSettings) (string, error) {
 		fmt.Println(err)
 		switch err.(type) {
 		case ChatgptError.ExceededQuotaException:
-			findAndRemoveKey(key)
+			if flgs.AutoRemoveErrorKeys {
+				findAndRemoveKey(key)
+			}
 		}
 
 		return "", ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
@@ -176,7 +179,9 @@ func (conversation *Conversation) GetAnswer(question string, settings RequestSet
 		fmt.Println(err)
 		switch err.(type) {
 		case ChatgptError.ExceededQuotaException:
-			findAndRemoveKey(key)
+			if flgs.AutoRemoveErrorKeys {
+				findAndRemoveKey(key)
+			}
 		}
 
 		return "", ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
