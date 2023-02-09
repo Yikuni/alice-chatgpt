@@ -3,6 +3,7 @@ package main
 import (
 	"alice-chatgpt/conversation"
 	"alice-chatgpt/dao"
+	flgs "alice-chatgpt/flags"
 	"alice-chatgpt/util"
 	"container/list"
 	"encoding/json"
@@ -27,6 +28,7 @@ func main() {
 	flag.StringVar(&token, "t", "alice", "verify token")
 	flag.StringVar(&p, "p", "7777", "port")
 	flag.StringVar(&db, "db", "badger", "database url; use badger if undefined")
+	flag.BoolVar(&flgs.AutoRemoveErrorKeys, "a", false, "auto remove key when key is above the quota")
 	app := gin.Default()
 	app.POST("/chatgpt/create", create)
 	app.POST("/chatgpt/chat", chat)

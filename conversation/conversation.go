@@ -97,9 +97,10 @@ func Key() string {
 
 func SendDirectly(prompt string, settings RequestSettings) (string, error) {
 	// 构造请求头
+	key := Key()
 	headers := make(map[string]string, 2)
 	headers["Content-Type"] = "application/json"
-	headers["Authorization"] = "Bearer " + Key()
+	headers["Authorization"] = "Bearer " + key
 	// 请求体, 转化为bytes
 	request := ChatgptRequest{
 		Prompt:          prompt,
@@ -123,15 +124,26 @@ func SendDirectly(prompt string, settings RequestSettings) (string, error) {
 		return "", err
 	}
 	fmt.Println(jsonObject.String())
-	answer := jsonObject.S("choices", "0", "text").Data().(string)
+	answerData := jsonObject.S("choices", "0", "text").Data()
+	if answerData == nil {
+		fmt.Println(err)
+		switch err.(type) {
+		case ChatgptError.ExceededQuotaException:
+			findAndRemoveKey(key)
+		}
+
+		return "", ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
+	}
+	answer := answerData.(string)
 	return answer, nil
 }
 func (conversation *Conversation) GetAnswer(question string, settings RequestSettings) (string, error) {
 	conversation.AIAnswered = false
 	conversation.SentenceList.PushBack(question)
+	key := Key()
 	headers := make(map[string]string, 2)
 	headers["Content-Type"] = "application/json"
-	headers["Authorization"] = "Bearer " + Key()
+	headers["Authorization"] = "Bearer " + key
 	request := ChatgptRequest{
 		Prompt:          conversation.PlainText() + "\nAI: ",
 		RequestSettings: settings,
@@ -160,6 +172,13 @@ func (conversation *Conversation) GetAnswer(question string, settings RequestSet
 	}
 	answerData := jsonObject.S("choices", "0", "text").Data()
 	if answerData == nil {
+		conversation.SentenceList.Remove(conversation.SentenceList.Back())
+		fmt.Println(err)
+		switch err.(type) {
+		case ChatgptError.ExceededQuotaException:
+			findAndRemoveKey(key)
+		}
+
 		return "", ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
 	}
 	answer := answerData.(string)
@@ -223,4 +242,13 @@ func FromJsonBytes(marshal []byte) (*CStorage, error) {
 		sentences[i] = sentence.Data().(string)
 	}
 	return &CStorage{jsonObj.S("Id").Data().(string), jsonObj.S("Prompt").Data().(string), sentences}, nil
+}
+
+func findAndRemoveKey(key string) {
+	for i := range Keys {
+		if Keys[i] == key {
+			Keys = append(Keys[:i], Keys[i+1:]...)
+			return
+		}
+	}
 }
