@@ -22,13 +22,15 @@ var (
 	p               string
 	db              string
 	daoInstance     dao.Dao
+	qps             int = 0
 )
 
 func main() {
 	flag.StringVar(&token, "t", "alice", "verify token")
 	flag.StringVar(&p, "p", "7777", "port")
-	flag.StringVar(&db, "db", "badger", "database url; use badger if undefined")
+	flag.StringVar(&db, "db", "badger", "database url; use badger if undefined, now support only badger")
 	flag.BoolVar(&flgs.AutoRemoveErrorKeys, "a", false, "auto remove key when key is above the quota")
+	flag.IntVar(&flgs.LimitPerMin, "l", 500, "limit usage per minute")
 	app := gin.Default()
 	app.POST("/chatgpt/create", create)
 	app.POST("/chatgpt/chat", chat)
@@ -51,6 +53,12 @@ func main() {
 					fmt.Printf("Conversation with id: %s expired", k)
 				}
 			}
+		}
+	}()
+	go func() {
+		for {
+			time.Sleep(time.Minute)
+			qps = 0
 		}
 	}()
 	dbEnabled := false
@@ -181,6 +189,9 @@ func quickAnswer(c *gin.Context) {
 	if !verify(c) {
 		return
 	}
+	if !limit(c) {
+		return
+	}
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.String(500, err.Error())
@@ -275,6 +286,9 @@ func summary(c *gin.Context) {
 	if !verify(c) {
 		return
 	}
+	if !limit(c) {
+		return
+	}
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.String(500, err.Error())
@@ -292,4 +306,13 @@ func summary(c *gin.Context) {
 		return
 	}
 	c.String(200, answer)
+}
+
+func limit(c *gin.Context) bool {
+	if qps > flgs.LimitPerMin {
+		c.String(502, "Server busy")
+		return false
+	}
+	qps++
+	return true
 }
