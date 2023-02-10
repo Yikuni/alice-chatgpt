@@ -49,23 +49,25 @@ func init() {
 		fmt.Println(err.Error())
 		os.Exit(0)
 	}
-	Keys = strings.Split(string(fileBytes), "\n")
-	if len(Keys) == 0 {
+	readLines := strings.Split(string(fileBytes), "\n")
+	if len(readLines) == 0 {
 		panic("No valid keys in key.txt")
 	}
-	for i := range Keys {
-		if i != len(Keys)-1 {
-			index := len(Keys[i]) - 1
-			if index <= 0 {
-				Keys = append(Keys[:i], Keys[i+1:]...)
-				continue
-			}
-			last := Keys[i][index]
-			if last == '\n' {
-				Keys[i] = Keys[i][:len(Keys[i])-1]
-				fmt.Printf("Loaded Key: %s\n", Keys[i])
-			}
+	Keys = make([]string, len(readLines))
+	keyNums := 0
+	for i := range readLines {
+		if len(readLines[i]) > 2 {
+			readLines[i] = strings.Trim(readLines[i], " ")
+			Keys[keyNums] = readLines[i]
+			fmt.Printf("Loaded Key: %s\n", Keys[keyNums])
+			keyNums++
 		}
+	}
+	if keyNums == 0 {
+		panic("No Valid Keys! Make sure you have put keys in key.txt")
+	}
+	if keyNums != cap(Keys) {
+		Keys = append(Keys[:keyNums])
 	}
 }
 
@@ -105,10 +107,9 @@ func Key() string {
 func SendDirectly(prompt string, settings RequestSettings) (string, error) {
 	// 构造请求头
 	key := Key()
-	fmt.Println("key is : " + key)
 	headers := make(map[string]string, 2)
 	headers["Content-Type"] = "application/json"
-	headers["Authorization"] = "Bearer " + key
+	headers["Authorization"] = fmt.Sprintf("%s %s", "Bearer", key)
 	// 请求体, 转化为bytes
 	request := ChatgptRequest{
 		Prompt:          prompt,
@@ -137,7 +138,7 @@ func SendDirectly(prompt string, settings RequestSettings) (string, error) {
 	fmt.Println(jsonObject.String())
 	answerData := jsonObject.S("choices", "0", "text").Data()
 	if answerData == nil {
-		err := ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
+		err = ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
 		fmt.Println(err)
 		switch err.(type) {
 		case ChatgptError.ExceededQuotaException:
@@ -151,13 +152,15 @@ func SendDirectly(prompt string, settings RequestSettings) (string, error) {
 	return answer, nil
 }
 func (conversation *Conversation) GetAnswer(question string, settings RequestSettings) (string, error) {
+	if !conversation.AIAnswered {
+		return "", ChatgptError.ChatgptError{Msg: "AI is thinking"}
+	}
 	conversation.AIAnswered = false
 	conversation.SentenceList.PushBack(question)
 	key := Key()
-	header := "Bearer " + key
 	headers := make(map[string]string, 2)
 	headers["Content-Type"] = "application/json"
-	headers["Authorization"] = header
+	headers["Authorization"] = fmt.Sprintf("%s %s", "Bearer", key)
 	request := ChatgptRequest{
 		Prompt:          conversation.PlainText() + "\nAI: ",
 		RequestSettings: settings,
@@ -190,7 +193,7 @@ func (conversation *Conversation) GetAnswer(question string, settings RequestSet
 	answerData := jsonObject.S("choices", "0", "text").Data()
 	if answerData == nil {
 		conversation.SentenceList.Remove(conversation.SentenceList.Back())
-		err := ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
+		err = ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
 		fmt.Println(err.Error())
 		switch err.(type) {
 		case ChatgptError.ExceededQuotaException:
@@ -264,6 +267,10 @@ func FromJsonBytes(marshal []byte) (*CStorage, error) {
 }
 
 func findAndRemoveKey(key string) {
+	if len(Keys) <= 1 {
+		fmt.Println("No Valid Keys, server stopped")
+		os.Exit(0)
+	}
 	for i := range Keys {
 		if Keys[i] == key {
 			fmt.Printf("Key is not available and has been removed: %s\n", Keys[i])
