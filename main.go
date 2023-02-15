@@ -1,6 +1,7 @@
 package main
 
 import (
+	"alice-chatgpt/auth"
 	"alice-chatgpt/conversation"
 	"alice-chatgpt/dao"
 	flgs "alice-chatgpt/flags"
@@ -16,21 +17,25 @@ import (
 )
 
 var (
-	idLength        = 8
-	token           string
+	idLength = 8
+
 	conversationMap = make(map[string]*conversation.Conversation, 20)
 	p               string
 	db              string
 	daoInstance     dao.Dao
 	qps             int = 0
+	authInstance    auth.Auth
 )
 
 func main() {
-	flag.StringVar(&token, "t", "alice", "verify token")
+	flag.StringVar(&flgs.Token, "t", "alice", "verify token")
 	flag.StringVar(&p, "p", "7777", "port")
 	flag.StringVar(&db, "db", "badger", "database url; use badger if undefined, now support only badger")
 	flag.BoolVar(&flgs.AutoRemoveErrorKeys, "a", true, "auto remove key when key is above the quota")
 	flag.IntVar(&flgs.LimitPerMin, "l", 500, "limit usage per minute")
+	flag.StringVar(&flgs.AuthType, "auth", "simple", "auth type: none, simple, normal. simple as default")
+	flag.Parse()
+	setAuthInstance()
 	app := gin.Default()
 	app.POST("/chatgpt/create", create)
 	app.POST("/chatgpt/chat", chat)
@@ -93,12 +98,23 @@ func main() {
 	}
 }
 
+func setAuthInstance() {
+	switch flgs.AuthType {
+	case "none":
+		authInstance = &auth.NoneAuth{}
+	case "normal":
+		authInstance = auth.NewNormalAuth(50)
+	default:
+		authInstance = &auth.SimpleAuth{}
+
+	}
+}
 func verify(c *gin.Context) bool {
-	if token != c.GetHeader("token") {
+	if authInstance.Verify(c) {
+		return true
+	} else {
 		c.String(505, "Auth failed")
 		return false
-	} else {
-		return true
 	}
 }
 

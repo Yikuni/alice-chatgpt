@@ -5,6 +5,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -44,4 +45,17 @@ func RandStringRunes(n int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
+}
+
+func HexBuffToString(buff []byte) string {
+	var ret string
+	for _, value := range buff {
+		str := strconv.FormatUint(uint64(value), 16)
+		if len([]rune(str)) == 1 {
+			ret = ret + "0" + str
+		} else {
+			ret = ret + str
+		}
+	}
+	return ret
 }
