@@ -14,32 +14,8 @@ import (
 )
 
 var (
-	Keys            []string
-	times           = 0
-	DefaultSettings = RequestSettings{
-		Model:            "text-davinci-003",
-		MaxTokens:        500,
-		TopP:             1,
-		FrequencyPenalty: 0,
-		PresencePenalty:  0.6,
-		Temperature:      0.9,
-	}
-	QuickChatSettings = RequestSettings{
-		Model:            "text-davinci-003",
-		MaxTokens:        3500,
-		TopP:             1,
-		FrequencyPenalty: 0,
-		PresencePenalty:  0.6,
-		Temperature:      0.9,
-	}
-	SummarySettings = RequestSettings{
-		Model:            "text-davinci-003",
-		MaxTokens:        2048,
-		TopP:             1,
-		FrequencyPenalty: 0,
-		PresencePenalty:  1,
-		Temperature:      0.7,
-	}
+	Keys  []string
+	times = 0
 )
 
 func init() {
@@ -72,10 +48,11 @@ func init() {
 }
 
 type Conversation struct {
-	Prompt       string     // prompt
-	SentenceList *list.List // 对话表, 偶数是人类
-	AIAnswered   bool       // AI是否完成回复
-	LastModify   int64      // 上次回复的时间戳
+	Prompt          string     // prompt
+	SentenceList    *list.List // 对话表, 偶数是人类
+	AIAnswered      bool       // AI是否完成回复
+	LastModify      int64      // 上次回复的时间戳
+	RequestSettings RequestSettings
 }
 
 // CStorage :Conversation存储形式
@@ -151,7 +128,7 @@ func SendDirectly(prompt string, settings RequestSettings) (string, error) {
 	answer := answerData.(string)
 	return answer, nil
 }
-func (conversation *Conversation) GetAnswer(question string, settings RequestSettings) (string, error) {
+func (conversation *Conversation) GetAnswer(question string) (string, error) {
 	if !conversation.AIAnswered {
 		return "", ChatgptError.ChatgptError{Msg: "AI is thinking"}
 	}
@@ -163,7 +140,7 @@ func (conversation *Conversation) GetAnswer(question string, settings RequestSet
 	headers["Authorization"] = fmt.Sprintf("%s %s", "Bearer", key)
 	request := ChatgptRequest{
 		Prompt:          conversation.PlainText() + "\nAI: ",
-		RequestSettings: settings,
+		RequestSettings: conversation.RequestSettings,
 	}
 	jsonString, err := json.Marshal(&request)
 	defer func() {
@@ -209,11 +186,15 @@ func (conversation *Conversation) GetAnswer(question string, settings RequestSet
 }
 
 func CreateConversation(prompt string) *Conversation {
-	return &Conversation{prompt, list.New(), true, time.Now().Unix()}
+	return &Conversation{prompt, list.New(), true, time.Now().Unix(), DefaultSettings}
+}
+
+func CreateCustomConversation(prompt string, settings RequestSettings) *Conversation {
+	return &Conversation{prompt, list.New(), true, time.Now().Unix(), settings}
 }
 
 func CreateQuickConversation(prompt string, sentenceList *list.List) *Conversation {
-	return &Conversation{prompt, sentenceList, true, time.Now().Unix()}
+	return &Conversation{prompt, sentenceList, true, time.Now().Unix(), QuickChatSettings}
 }
 
 func CreateDefaultConversation() *Conversation {

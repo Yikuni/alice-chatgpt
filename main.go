@@ -151,11 +151,23 @@ func create(c *gin.Context) {
 	// 保证没有重复runes
 	for ; conversationMap[runes] != nil; runes = util.RandStringRunes(idLength) {
 	}
-	if body == "" {
-		conversationMap[runes] = conversation.CreateDefaultConversation()
-	} else {
-		conversationMap[runes] = conversation.CreateConversation(body)
+
+	settings := c.GetHeader("settings")
+	var requestSettings conversation.RequestSettings
+	switch settings {
+	case "":
+		requestSettings = conversation.DefaultSettings
+	case "FriendChat":
+		requestSettings = conversation.FriendSettings
+	default:
+		c.String(500, "No such setting: "+settings)
+		return
 	}
+
+	if body == "" && requestSettings == conversation.DefaultSettings {
+		body = "The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.\n"
+	}
+	conversationMap[runes] = conversation.CreateCustomConversation(body, requestSettings)
 	c.String(200, runes)
 }
 
@@ -189,7 +201,7 @@ func chat(c *gin.Context) {
 		return
 	}
 	body := string(bodyBytes)
-	answer, err := conv.GetAnswer(body, conversation.DefaultSettings)
+	answer, err := conv.GetAnswer(body)
 	if err != nil {
 		errorMessage := err.Error()
 		if errorMessage == "" {
@@ -225,7 +237,7 @@ func quickAnswer(c *gin.Context) {
 		examples.PushBack(container.Data().(string))
 	}
 	conv := conversation.CreateQuickConversation(prompt, examples)
-	answer, err := conv.GetAnswer(question, conversation.QuickChatSettings)
+	answer, err := conv.GetAnswer(question)
 	if err != nil {
 		errorMessage := err.Error()
 		if errorMessage == "" {
