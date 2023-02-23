@@ -1,7 +1,7 @@
 package conversation
 
 var (
-	DefaultSettings = RequestSettings{
+	DefaultSettings = &RequestSettings{
 		Model:            "text-davinci-003",
 		MaxTokens:        500,
 		TopP:             1,
@@ -9,7 +9,7 @@ var (
 		PresencePenalty:  0.6,
 		Temperature:      0.9,
 	}
-	QuickChatSettings = RequestSettings{
+	QuickChatSettings = &RequestSettings{
 		Model:            "text-davinci-003",
 		MaxTokens:        3500,
 		TopP:             1,
@@ -17,7 +17,7 @@ var (
 		PresencePenalty:  0.6,
 		Temperature:      0.9,
 	}
-	SummarySettings = RequestSettings{
+	SummarySettings = &RequestSettings{
 		Model:            "text-davinci-003",
 		MaxTokens:        2048,
 		TopP:             1,
@@ -25,12 +25,14 @@ var (
 		PresencePenalty:  1,
 		Temperature:      0.7,
 	}
-	FriendSettings = RequestSettings{
+	friendStop     = make([]string, 1, 1)
+	FriendSettings = &RequestSettings{
 		Model:            "text-davinci-003",
 		MaxTokens:        512,
 		TopP:             1,
 		FrequencyPenalty: 0.5,
 		PresencePenalty:  0,
 		Temperature:      0.5,
+		Stop:             friendStop,
 	}
 )

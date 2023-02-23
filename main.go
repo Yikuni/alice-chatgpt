@@ -102,11 +102,13 @@ func setAuthInstance() {
 	switch flgs.AuthType {
 	case "none":
 		authInstance = &auth.NoneAuth{}
+		fmt.Println("Auth set to none")
 	case "normal":
 		authInstance = auth.NewNormalAuth(50)
+		fmt.Println("Auth set to normal")
 	default:
 		authInstance = &auth.SimpleAuth{}
-
+		fmt.Println("Auth set to simple")
 	}
 }
 func verify(c *gin.Context) bool {
@@ -153,7 +155,7 @@ func create(c *gin.Context) {
 	}
 
 	settings := c.GetHeader("settings")
-	var requestSettings conversation.RequestSettings
+	var requestSettings *conversation.RequestSettings
 	switch settings {
 	case "":
 		requestSettings = conversation.DefaultSettings
@@ -184,7 +186,11 @@ func context(c *gin.Context) {
 	if conv == nil {
 		return
 	}
-	c.String(200, conv.PlainText())
+	_type := 1
+	if conv.RequestSettings == conversation.FriendSettings {
+		_type = 1
+	}
+	c.String(200, conv.PlainText(_type))
 }
 
 func chat(c *gin.Context) {

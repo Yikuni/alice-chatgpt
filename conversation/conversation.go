@@ -45,6 +45,7 @@ func init() {
 	if keyNums != cap(Keys) {
 		Keys = append(Keys[:keyNums])
 	}
+	friendStop[0] = "You:"
 }
 
 type Conversation struct {
@@ -52,7 +53,7 @@ type Conversation struct {
 	SentenceList    *list.List // 对话表, 偶数是人类
 	AIAnswered      bool       // AI是否完成回复
 	LastModify      int64      // 上次回复的时间戳
-	RequestSettings RequestSettings
+	RequestSettings *RequestSettings
 }
 
 // CStorage :Conversation存储形式
@@ -62,12 +63,13 @@ type CStorage struct {
 	SentenceList []string // 对话表, 偶数是人类
 }
 type RequestSettings struct {
-	Model            string  `json:"model"`
-	MaxTokens        int     `json:"max_tokens"`
-	Temperature      float32 `json:"temperature"`
-	TopP             int     `json:"top_p"`
-	FrequencyPenalty float32 `json:"frequency_penalty"`
-	PresencePenalty  float32 `json:"presence_penalty"`
+	Model            string   `json:"model"`
+	MaxTokens        int      `json:"max_tokens"`
+	Temperature      float32  `json:"temperature"`
+	TopP             int      `json:"top_p"`
+	FrequencyPenalty float32  `json:"frequency_penalty"`
+	PresencePenalty  float32  `json:"presence_penalty"`
+	Stop             []string `json:"stop"`
 }
 
 type ChatgptRequest struct {
@@ -81,7 +83,7 @@ func Key() string {
 	return key
 }
 
-func SendDirectly(prompt string, settings RequestSettings) (string, error) {
+func SendDirectly(prompt string, settings *RequestSettings) (string, error) {
 	// 构造请求头
 	key := Key()
 	headers := make(map[string]string, 2)
@@ -90,7 +92,7 @@ func SendDirectly(prompt string, settings RequestSettings) (string, error) {
 	// 请求体, 转化为bytes
 	request := ChatgptRequest{
 		Prompt:          prompt,
-		RequestSettings: settings,
+		RequestSettings: *settings,
 	}
 	jsonString, err := json.Marshal(&request)
 	if err != nil {
@@ -128,33 +130,40 @@ func SendDirectly(prompt string, settings RequestSettings) (string, error) {
 	answer := answerData.(string)
 	return answer, nil
 }
-func (conversation *Conversation) GetAnswer(question string) (string, error) {
-	if !conversation.AIAnswered {
+func (conv *Conversation) GetAnswer(question string) (string, error) {
+	if !conv.AIAnswered {
 		return "", ChatgptError.ChatgptError{Msg: "AI is thinking"}
 	}
-	conversation.AIAnswered = false
-	conversation.SentenceList.PushBack(question)
+	conv.AIAnswered = false
+	conv.SentenceList.PushBack(question)
 	key := Key()
 	headers := make(map[string]string, 2)
 	headers["Content-Type"] = "application/json"
 	headers["Authorization"] = fmt.Sprintf("%s %s", "Bearer", key)
+
+	var prompt string
+	if conv.RequestSettings == FriendSettings {
+		prompt = conv.PlainText(1) + "\nFriend: "
+	} else {
+		prompt = conv.PlainText(0) + "\nAI: "
+	}
 	request := ChatgptRequest{
-		Prompt:          conversation.PlainText() + "\nAI: ",
-		RequestSettings: conversation.RequestSettings,
+		Prompt:          prompt,
+		RequestSettings: *conv.RequestSettings,
 	}
 	jsonString, err := json.Marshal(&request)
 	defer func() {
-		conversation.AIAnswered = true
-		conversation.LastModify = time.Now().Unix()
+		conv.AIAnswered = true
+		conv.LastModify = time.Now().Unix()
 	}()
 	if err != nil {
-		conversation.SentenceList.Remove(conversation.SentenceList.Back())
+		conv.SentenceList.Remove(conv.SentenceList.Back())
 		fmt.Println(err)
 		return "", err
 	}
 	result, err := util.PostHeader("https://api.openai.com/v1/completions", jsonString, headers)
 	if err != nil {
-		conversation.SentenceList.Remove(conversation.SentenceList.Back())
+		conv.SentenceList.Remove(conv.SentenceList.Back())
 		if err.Error() == "Post \"https://api.openai.com/v1/completions\": net/http: invalid header field value for \"Authorization\"" && flgs.AutoRemoveErrorKeys {
 			findAndRemoveKey(key)
 		}
@@ -163,13 +172,13 @@ func (conversation *Conversation) GetAnswer(question string) (string, error) {
 	}
 	jsonObject, err := gabs.ParseJSON([]byte(result))
 	if err != nil {
-		conversation.SentenceList.Remove(conversation.SentenceList.Back())
+		conv.SentenceList.Remove(conv.SentenceList.Back())
 		fmt.Println(err)
 		return "", err
 	}
 	answerData := jsonObject.S("choices", "0", "text").Data()
 	if answerData == nil {
-		conversation.SentenceList.Remove(conversation.SentenceList.Back())
+		conv.SentenceList.Remove(conv.SentenceList.Back())
 		err = ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
 		fmt.Println(err.Error())
 		switch err.(type) {
@@ -180,8 +189,8 @@ func (conversation *Conversation) GetAnswer(question string) (string, error) {
 		}
 		return "", err
 	}
-	answer := answerData.(string)
-	conversation.SentenceList.PushBack(answer)
+	answer := strings.Trim(answerData.(string), "\n")
+	conv.SentenceList.PushBack(answer)
 	return answer, nil
 }
 
@@ -189,7 +198,7 @@ func CreateConversation(prompt string) *Conversation {
 	return &Conversation{prompt, list.New(), true, time.Now().Unix(), DefaultSettings}
 }
 
-func CreateCustomConversation(prompt string, settings RequestSettings) *Conversation {
+func CreateCustomConversation(prompt string, settings *RequestSettings) *Conversation {
 	return &Conversation{prompt, list.New(), true, time.Now().Unix(), settings}
 }
 
@@ -201,16 +210,25 @@ func CreateDefaultConversation() *Conversation {
 	return CreateConversation("The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.\n")
 }
 
-func (conversation *Conversation) PlainText() string {
+func (conv *Conversation) PlainText(_type int) string {
 	builder := new(strings.Builder)
-	builder.WriteString(conversation.Prompt)
+	builder.WriteString(conv.Prompt)
 	builder.WriteString("\n")
 	index := 0
-	for element := conversation.SentenceList.Front(); element != nil; element = element.Next() {
+	var human string
+	var ai string
+	if _type == 0 {
+		human = "\nHuman: "
+		ai = "\nAI: "
+	} else {
+		human = "\nYou: "
+		ai = "\nFriend: "
+	}
+	for element := conv.SentenceList.Front(); element != nil; element = element.Next() {
 		if index%2 == 0 {
-			builder.WriteString("\nHuman: ")
+			builder.WriteString(human)
 		} else {
-			builder.WriteString("\nAI: ")
+			builder.WriteString(ai)
 		}
 		builder.WriteString(element.Value.(string))
 		index++
@@ -218,14 +236,14 @@ func (conversation *Conversation) PlainText() string {
 	return builder.String()
 }
 
-func (conversation *Conversation) ToCStorage(id string) *CStorage {
-	sentences := make([]string, conversation.SentenceList.Len())
+func (conv *Conversation) ToCStorage(id string) *CStorage {
+	sentences := make([]string, conv.SentenceList.Len())
 	i := 0
-	for element := conversation.SentenceList.Front(); element != nil; element = element.Next() {
+	for element := conv.SentenceList.Front(); element != nil; element = element.Next() {
 		sentences[i] = element.Value.(string)
 		i++
 	}
-	return &CStorage{id, conversation.Prompt, sentences}
+	return &CStorage{id, conv.Prompt, sentences}
 }
 
 // ToJsonBytes 转换为json byte
