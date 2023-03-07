@@ -25,7 +25,6 @@ var (
 		PresencePenalty:  1,
 		Temperature:      0.7,
 	}
-	friendStop     = make([]string, 1, 1)
 	FriendSettings = &RequestSettings{
 		Model:            "text-davinci-003",
 		MaxTokens:        512,
@@ -33,6 +32,6 @@ var (
 		FrequencyPenalty: 0.5,
 		PresencePenalty:  0,
 		Temperature:      0.5,
-		Stop:             friendStop,
+		Stop:             []string{"You:"},
 	}
 )

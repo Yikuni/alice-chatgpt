@@ -38,6 +38,7 @@ func main() {
 	setAuthInstance()
 	app := gin.Default()
 	app.POST("/chatgpt/create", create)
+	app.POST("/chatgpt/createRolePlay", createRolePlay)
 	app.POST("/chatgpt/chat", chat)
 	app.POST("/chatgpt/context", context)
 	app.POST("/chatgpt/finish", finish)
@@ -169,7 +170,58 @@ func create(c *gin.Context) {
 	if body == "" && requestSettings == conversation.DefaultSettings {
 		body = "The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.\n"
 	}
-	conversationMap[runes] = conversation.CreateCustomConversation(body, requestSettings)
+	conv := conversation.CreateCustomConversation(body, requestSettings, "\nAI: ", "\nHuman: ")
+	if requestSettings == conversation.FriendSettings {
+		conv.AIName = "\nFriend: "
+		conv.HumanName = "\nYou: "
+	}
+	conversationMap[runes] = conv
+	c.String(200, runes)
+}
+
+/*
+*
+create RolePlay conversation
+*/
+func createRolePlay(c *gin.Context) {
+	if !verify(c) {
+		return
+	}
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.String(500, err.Error())
+		return
+	}
+	/**
+	{
+		human_name: "Human",
+		ai_name:	"AI",
+		prompt:		"This is a conversation with an AI assistance..."
+	}
+	*/
+	jsonObject, err := gabs.ParseJSON(bodyBytes)
+	if err != nil {
+		c.String(500, err.Error())
+		return
+	}
+	humanName := jsonObject.S("human_name").Data().(string)
+	aiName := jsonObject.S("ai_name").Data().(string)
+	prompt := jsonObject.S("prompt").Data().(string)
+	runes := util.RandStringRunes(idLength)
+	// 保证没有重复runes
+	for ; conversationMap[runes] != nil; runes = util.RandStringRunes(idLength) {
+	}
+	requestSettings := conversation.RequestSettings{
+		Model:            "text-davinci-003",
+		MaxTokens:        512,
+		TopP:             1,
+		FrequencyPenalty: 0.5,
+		PresencePenalty:  0,
+		Temperature:      0.5,
+		Stop:             []string{humanName + ":"},
+	}
+	conv := conversation.CreateCustomConversation(prompt, &requestSettings, "\n"+aiName+": ", "\n"+humanName+": ")
+	conversationMap[runes] = conv
 	c.String(200, runes)
 }
 
@@ -183,14 +235,7 @@ func context(c *gin.Context) {
 	}
 
 	conv := getConversation(c)
-	if conv == nil {
-		return
-	}
-	_type := 1
-	if conv.RequestSettings == conversation.FriendSettings {
-		_type = 1
-	}
-	c.String(200, conv.PlainText(_type))
+	c.String(200, conv.PlainText())
 }
 
 func chat(c *gin.Context) {

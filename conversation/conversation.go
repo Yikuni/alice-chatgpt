@@ -45,7 +45,6 @@ func init() {
 	if keyNums != cap(Keys) {
 		Keys = append(Keys[:keyNums])
 	}
-	friendStop[0] = "You:"
 }
 
 type Conversation struct {
@@ -54,6 +53,8 @@ type Conversation struct {
 	AIAnswered      bool       // AI是否完成回复
 	LastModify      int64      // 上次回复的时间戳
 	RequestSettings *RequestSettings
+	AIName          string
+	HumanName       string
 }
 
 // CStorage :Conversation存储形式
@@ -140,13 +141,7 @@ func (conv *Conversation) GetAnswer(question string) (string, error) {
 	headers := make(map[string]string, 2)
 	headers["Content-Type"] = "application/json"
 	headers["Authorization"] = fmt.Sprintf("%s %s", "Bearer", key)
-
-	var prompt string
-	if conv.RequestSettings == FriendSettings {
-		prompt = conv.PlainText(1) + "\nFriend: "
-	} else {
-		prompt = conv.PlainText(0) + "\nAI: "
-	}
+	prompt := conv.PlainText() + conv.AIName
 	request := ChatgptRequest{
 		Prompt:          prompt,
 		RequestSettings: *conv.RequestSettings,
@@ -194,41 +189,24 @@ func (conv *Conversation) GetAnswer(question string) (string, error) {
 	return answer, nil
 }
 
-func CreateConversation(prompt string) *Conversation {
-	return &Conversation{prompt, list.New(), true, time.Now().Unix(), DefaultSettings}
-}
-
-func CreateCustomConversation(prompt string, settings *RequestSettings) *Conversation {
-	return &Conversation{prompt, list.New(), true, time.Now().Unix(), settings}
+func CreateCustomConversation(prompt string, settings *RequestSettings, AIName string, HumanName string) *Conversation {
+	return &Conversation{prompt, list.New(), true, time.Now().Unix(), settings, AIName, HumanName}
 }
 
 func CreateQuickConversation(prompt string, sentenceList *list.List) *Conversation {
-	return &Conversation{prompt, sentenceList, true, time.Now().Unix(), QuickChatSettings}
+	return &Conversation{prompt, sentenceList, true, time.Now().Unix(), QuickChatSettings, "\nAI: ", "\nHuman: "}
 }
 
-func CreateDefaultConversation() *Conversation {
-	return CreateConversation("The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.\n")
-}
-
-func (conv *Conversation) PlainText(_type int) string {
+func (conv *Conversation) PlainText() string {
 	builder := new(strings.Builder)
 	builder.WriteString(conv.Prompt)
 	builder.WriteString("\n")
 	index := 0
-	var human string
-	var ai string
-	if _type == 0 {
-		human = "\nHuman: "
-		ai = "\nAI: "
-	} else {
-		human = "\nYou: "
-		ai = "\nFriend: "
-	}
 	for element := conv.SentenceList.Front(); element != nil; element = element.Next() {
 		if index%2 == 0 {
-			builder.WriteString(human)
+			builder.WriteString(conv.HumanName)
 		} else {
-			builder.WriteString(ai)
+			builder.WriteString(conv.AIName)
 		}
 		builder.WriteString(element.Value.(string))
 		index++
