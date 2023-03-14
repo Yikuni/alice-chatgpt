@@ -2,7 +2,7 @@ package conversation
 
 import (
 	"alice-chatgpt/ChatgptError"
-	flgs "alice-chatgpt/flags"
+	"alice-chatgpt/global"
 	"alice-chatgpt/util"
 	"container/list"
 	"encoding/json"
@@ -47,14 +47,77 @@ func init() {
 	}
 }
 
-type Conversation struct {
-	Prompt          string     // prompt
-	SentenceList    *list.List // 对话表, 偶数是人类
-	AIAnswered      bool       // AI是否完成回复
-	LastModify      int64      // 上次回复的时间戳
-	RequestSettings *RequestSettings
-	AIName          string
-	HumanName       string
+type Conversation interface {
+	GetSentenceList() *list.List
+	GetPrompt() string
+	GetHumanName() string
+	GetAIName() string
+	GetLastModify() int64
+	SetLastModify(int64)
+	GetAIAnswered() bool
+	SetAIAnswered(bool)
+	RequestBody() ([]byte, error)
+	SolveResponse(jsonObject *gabs.Container) string
+}
+
+func GetAnswer(conv Conversation, question string) (string, error) {
+	if !conv.GetAIAnswered() {
+		return "", ChatgptError.ChatgptError{Msg: "AI is thinking"}
+	}
+	conv.SetAIAnswered(false)
+	conv.GetSentenceList().PushBack(question)
+	key := Key()
+	headers := make(map[string]string, 2)
+	headers["Content-Type"] = "application/json"
+	headers["Authorization"] = fmt.Sprintf("%s %s", "Bearer", key)
+	jsonString, err := conv.RequestBody()
+	defer func() {
+		conv.SetAIAnswered(true)
+		conv.SetLastModify(time.Now().Unix())
+	}()
+	if err != nil {
+		conv.GetSentenceList().Remove(conv.GetSentenceList().Back())
+		fmt.Println(err)
+		return "", err
+	}
+	var _url string
+	switch conv.(type) {
+	case *GPT3Conversation:
+		_url = "https://api.openai.com/v1/completions"
+	case *TurboConversation:
+		_url = "https://api.openai.com/v1/chat/completions"
+	}
+	result, err := util.PostHeader(_url, jsonString, headers)
+	if err != nil {
+		conv.GetSentenceList().Remove(conv.GetSentenceList().Back())
+		if err.Error() == "Post \"https://api.openai.com/v1/completions\": net/http: invalid header field value for \"Authorization\"" && global.AutoRemoveErrorKeys {
+			findAndRemoveKey(key)
+		}
+		fmt.Println(err)
+		return "", err
+	}
+	jsonObject, err := gabs.ParseJSON([]byte(result))
+	if err != nil {
+		conv.GetSentenceList().Remove(conv.GetSentenceList().Back())
+		fmt.Println(err)
+		return "", err
+	}
+	if jsonObject.Exists("error") {
+		conv.GetSentenceList().Remove(conv.GetSentenceList().Back())
+		err = ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
+		fmt.Println(err.Error())
+		switch err.(type) {
+		case ChatgptError.ExceededQuotaException:
+			if global.AutoRemoveErrorKeys {
+				findAndRemoveKey(key)
+			}
+		}
+		return "", err
+	}
+	answerData := conv.SolveResponse(jsonObject)
+	answer := strings.Trim(answerData, "\n")
+	conv.GetSentenceList().PushBack(answer)
+	return answer, nil
 }
 
 // CStorage :Conversation存储形式
@@ -103,7 +166,7 @@ func SendDirectly(prompt string, settings *RequestSettings) (string, error) {
 	// 发送请求
 	result, err := util.PostHeader("https://api.openai.com/v1/completions", jsonString, headers)
 	if err != nil {
-		if err.Error() == "Post \"https://api.openai.com/v1/completions\": net/http: invalid header field value for \"Authorization\"" && flgs.AutoRemoveErrorKeys {
+		if err.Error() == "Post \"https://api.openai.com/v1/completions\": net/http: invalid header field value for \"Authorization\"" && global.AutoRemoveErrorKeys {
 			findAndRemoveKey(key)
 		}
 		fmt.Println(err)
@@ -122,7 +185,7 @@ func SendDirectly(prompt string, settings *RequestSettings) (string, error) {
 		fmt.Println(err)
 		switch err.(type) {
 		case ChatgptError.ExceededQuotaException:
-			if flgs.AutoRemoveErrorKeys {
+			if global.AutoRemoveErrorKeys {
 				findAndRemoveKey(key)
 			}
 		}
@@ -130,98 +193,6 @@ func SendDirectly(prompt string, settings *RequestSettings) (string, error) {
 	}
 	answer := answerData.(string)
 	return answer, nil
-}
-func (conv *Conversation) GetAnswer(question string) (string, error) {
-	if !conv.AIAnswered {
-		return "", ChatgptError.ChatgptError{Msg: "AI is thinking"}
-	}
-	conv.AIAnswered = false
-	conv.SentenceList.PushBack(question)
-	key := Key()
-	headers := make(map[string]string, 2)
-	headers["Content-Type"] = "application/json"
-	headers["Authorization"] = fmt.Sprintf("%s %s", "Bearer", key)
-	prompt := conv.PlainText() + conv.AIName
-	request := ChatgptRequest{
-		Prompt:          prompt,
-		RequestSettings: *conv.RequestSettings,
-	}
-	jsonString, err := json.Marshal(&request)
-	defer func() {
-		conv.AIAnswered = true
-		conv.LastModify = time.Now().Unix()
-	}()
-	if err != nil {
-		conv.SentenceList.Remove(conv.SentenceList.Back())
-		fmt.Println(err)
-		return "", err
-	}
-	result, err := util.PostHeader("https://api.openai.com/v1/completions", jsonString, headers)
-	if err != nil {
-		conv.SentenceList.Remove(conv.SentenceList.Back())
-		if err.Error() == "Post \"https://api.openai.com/v1/completions\": net/http: invalid header field value for \"Authorization\"" && flgs.AutoRemoveErrorKeys {
-			findAndRemoveKey(key)
-		}
-		fmt.Println(err)
-		return "", err
-	}
-	jsonObject, err := gabs.ParseJSON([]byte(result))
-	if err != nil {
-		conv.SentenceList.Remove(conv.SentenceList.Back())
-		fmt.Println(err)
-		return "", err
-	}
-	answerData := jsonObject.S("choices", "0", "text").Data()
-	if answerData == nil {
-		conv.SentenceList.Remove(conv.SentenceList.Back())
-		err = ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
-		fmt.Println(err.Error())
-		switch err.(type) {
-		case ChatgptError.ExceededQuotaException:
-			if flgs.AutoRemoveErrorKeys {
-				findAndRemoveKey(key)
-			}
-		}
-		return "", err
-	}
-	answer := strings.Trim(answerData.(string), "\n")
-	conv.SentenceList.PushBack(answer)
-	return answer, nil
-}
-
-func CreateCustomConversation(prompt string, settings *RequestSettings, AIName string, HumanName string) *Conversation {
-	return &Conversation{prompt, list.New(), true, time.Now().Unix(), settings, AIName, HumanName}
-}
-
-func CreateQuickConversation(prompt string, sentenceList *list.List) *Conversation {
-	return &Conversation{prompt, sentenceList, true, time.Now().Unix(), QuickChatSettings, "\nAI: ", "\nHuman: "}
-}
-
-func (conv *Conversation) PlainText() string {
-	builder := new(strings.Builder)
-	builder.WriteString(conv.Prompt)
-	builder.WriteString("\n")
-	index := 0
-	for element := conv.SentenceList.Front(); element != nil; element = element.Next() {
-		if index%2 == 0 {
-			builder.WriteString(conv.HumanName)
-		} else {
-			builder.WriteString(conv.AIName)
-		}
-		builder.WriteString(element.Value.(string))
-		index++
-	}
-	return builder.String()
-}
-
-func (conv *Conversation) ToCStorage(id string) *CStorage {
-	sentences := make([]string, conv.SentenceList.Len())
-	i := 0
-	for element := conv.SentenceList.Front(); element != nil; element = element.Next() {
-		sentences[i] = element.Value.(string)
-		i++
-	}
-	return &CStorage{id, conv.Prompt, sentences}
 }
 
 // ToJsonBytes 转换为json byte
@@ -255,4 +226,30 @@ func findAndRemoveKey(key string) {
 			return
 		}
 	}
+}
+
+func ToCStorage(conv Conversation, id string) *CStorage {
+	sentences := make([]string, conv.GetSentenceList().Len())
+	i := 0
+	for element := conv.GetSentenceList().Front(); element != nil; element = element.Next() {
+		sentences[i] = element.Value.(string)
+		i++
+	}
+	return &CStorage{id, conv.GetPrompt(), sentences}
+}
+func PlainText(conv Conversation) string {
+	builder := new(strings.Builder)
+	builder.WriteString(conv.GetPrompt())
+	builder.WriteString("\n")
+	index := 0
+	for element := conv.GetSentenceList().Front(); element != nil; element = element.Next() {
+		if index%2 == 0 {
+			builder.WriteString(conv.GetHumanName())
+		} else {
+			builder.WriteString(conv.GetAIName())
+		}
+		builder.WriteString(element.Value.(string))
+		index++
+	}
+	return builder.String()
 }

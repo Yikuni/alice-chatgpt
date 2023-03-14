@@ -4,7 +4,7 @@ import (
 	"alice-chatgpt/auth"
 	"alice-chatgpt/conversation"
 	"alice-chatgpt/dao"
-	flgs "alice-chatgpt/flags"
+	"alice-chatgpt/global"
 	"alice-chatgpt/util"
 	"container/list"
 	"encoding/json"
@@ -19,25 +19,27 @@ import (
 var (
 	idLength = 8
 
-	conversationMap = make(map[string]*conversation.Conversation, 20)
+	conversationMap = make(map[string]conversation.Conversation, 20)
 	p               string
 	db              string
 	daoInstance     dao.Dao
-	qps             int = 0
+	qps             = 0
 	authInstance    auth.Auth
 )
 
 func main() {
-	flag.StringVar(&flgs.Token, "t", "alice", "verify token")
+	flag.StringVar(&global.Token, "t", "alice", "verify token")
 	flag.StringVar(&p, "p", "7777", "port")
 	flag.StringVar(&db, "db", "badger", "database url; use badger if undefined, now support only badger")
-	flag.BoolVar(&flgs.AutoRemoveErrorKeys, "a", true, "auto remove key when key is above the quota")
-	flag.IntVar(&flgs.LimitPerMin, "l", 500, "limit usage per minute")
-	flag.StringVar(&flgs.AuthType, "auth", "simple", "auth type: none, simple, normal. simple as default")
+	flag.BoolVar(&global.AutoRemoveErrorKeys, "a", true, "auto remove key when key is above the quota")
+	flag.IntVar(&global.LimitPerMin, "l", 500, "limit usage per minute")
+	flag.StringVar(&global.AuthType, "auth", "simple", "auth type: none, simple, normal. simple as default")
+	flag.StringVar(&global.Proxy, "proxy", "", "http proxy")
 	flag.Parse()
 	setAuthInstance()
 	app := gin.Default()
 	app.POST("/chatgpt/create", create)
+	app.POST("/chatgpt/createTurbo", createTurbo)
 	app.POST("/chatgpt/createRolePlay", createRolePlay)
 	app.POST("/chatgpt/chat", chat)
 	app.POST("/chatgpt/context", context)
@@ -53,10 +55,10 @@ func main() {
 			now := time.Now().Unix()
 			for k, v := range conversationMap {
 				// 如果一定时间内没使用, 或者5分钟内仍然只有2句话
-				duration := now - v.LastModify
-				if duration > 1200 || duration > 300 && v.SentenceList.Len() <= 2 {
+				duration := now - v.GetLastModify()
+				if duration > 1200 || duration > 300 && v.GetSentenceList().Len() <= 2 {
 					delete(conversationMap, k)
-					fmt.Printf("Conversation with id: %s expired", k)
+					fmt.Printf("GPT3Conversation with id: %s expired", k)
 				}
 			}
 		}
@@ -100,7 +102,7 @@ func main() {
 }
 
 func setAuthInstance() {
-	switch flgs.AuthType {
+	switch global.AuthType {
 	case "none":
 		authInstance = &auth.NoneAuth{}
 		fmt.Println("Auth set to none")
@@ -124,15 +126,15 @@ func verify(c *gin.Context) bool {
 func getConversation(c *gin.Context) *conversation.Conversation {
 	id := c.GetHeader("conversation")
 	if id == "" {
-		c.String(500, "Conversation id is nil")
+		c.String(500, "GPT3Conversation id is nil")
 		return nil
 	}
 	conv := conversationMap[id]
 	if conv == nil {
-		c.String(500, "failed to find Conversation with provided id: %s ", id)
+		c.String(500, "failed to find GPT3Conversation with provided id: %s ", id)
 		return nil
 	}
-	return conv
+	return &conv
 }
 
 /*
@@ -175,6 +177,41 @@ func create(c *gin.Context) {
 		conv.AIName = "\nFriend: "
 		conv.HumanName = "\nYou: "
 	}
+	conversationMap[runes] = conv
+	c.String(200, runes)
+}
+
+/*
+*
+创建会话
+请求体: prompt plain text
+*/
+func createTurbo(c *gin.Context) {
+	if !verify(c) {
+		return
+	}
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.String(500, err.Error())
+		return
+	}
+	if err != nil {
+		c.String(500, err.Error())
+		return
+	}
+	runes := util.RandStringRunes(idLength)
+	// 保证没有重复runes
+	for ; conversationMap[runes] != nil; runes = util.RandStringRunes(idLength) {
+	}
+	var (
+		prompt    = "You are ChatGPT, a large language model trained by OpenAI. Answer as concisely as possible."
+		AIName    = "user"
+		humanName = "assistant"
+	)
+	if len(bodyBytes) > 1 {
+		prompt = string(bodyBytes)
+	}
+	conv := conversation.CreateTuborConversation(prompt, AIName, humanName)
 	conversationMap[runes] = conv
 	c.String(200, runes)
 }
@@ -235,7 +272,7 @@ func context(c *gin.Context) {
 	}
 
 	conv := getConversation(c)
-	c.String(200, conv.PlainText())
+	c.String(200, conversation.PlainText(*conv))
 }
 
 func chat(c *gin.Context) {
@@ -252,7 +289,7 @@ func chat(c *gin.Context) {
 		return
 	}
 	body := string(bodyBytes)
-	answer, err := conv.GetAnswer(body)
+	answer, err := conversation.GetAnswer(*conv, body)
 	if err != nil {
 		errorMessage := err.Error()
 		if errorMessage == "" {
@@ -288,7 +325,7 @@ func quickAnswer(c *gin.Context) {
 		examples.PushBack(container.Data().(string))
 	}
 	conv := conversation.CreateQuickConversation(prompt, examples)
-	answer, err := conv.GetAnswer(question)
+	answer, err := conversation.GetAnswer(conv, question)
 	if err != nil {
 		errorMessage := err.Error()
 		if errorMessage == "" {
@@ -309,7 +346,7 @@ func finish(c *gin.Context) {
 		return
 	}
 	delete(conversationMap, c.GetHeader("conversation"))
-	c.String(200, "Conversation finished")
+	c.String(200, "GPT3Conversation finished")
 }
 
 func contextArray(c *gin.Context) {
@@ -320,7 +357,7 @@ func contextArray(c *gin.Context) {
 	if conv == nil {
 		return
 	}
-	result, err := json.Marshal(&conv.SentenceList)
+	result, err := json.Marshal((*conv).GetSentenceList())
 	if err != nil {
 		c.String(500, err.Error())
 		return
@@ -337,7 +374,7 @@ func store(c *gin.Context) {
 	if conv == nil {
 		return
 	}
-	cStorage := conv.ToCStorage(c.GetHeader("conversation"))
+	cStorage := conversation.ToCStorage(*conv, c.GetHeader("conversation"))
 	err := daoInstance.Save(cStorage)
 	if err != nil {
 		c.String(500, err.Error())
@@ -388,7 +425,7 @@ func summary(c *gin.Context) {
 }
 
 func limit(c *gin.Context) bool {
-	if qps > flgs.LimitPerMin {
+	if qps > global.LimitPerMin {
 		c.String(502, "Server busy")
 		return false
 	}

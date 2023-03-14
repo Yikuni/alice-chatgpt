@@ -240,7 +240,7 @@ AI:  是的，睡觉可以帮助你放松身心，释放压力，并且提升你
 #### 错误响应示例
 
 ```javascript
-failed to find Conversation with provided id: 4ev2Djnd 
+failed to find GPT3Conversation with provided id: 4ev2Djnd 
 ```
 
 ## /chatgpt/finish
@@ -287,13 +287,13 @@ failed to find Conversation with provided id: 4ev2Djnd
 #### 成功响应示例
 
 ```javascript
-Conversation finished
+GPT3Conversation finished
 ```
 
 #### 错误响应示例
 
 ```javascript
-failed to find Conversation with provided id: qrHe4o0P 
+failed to find GPT3Conversation with provided id: qrHe4o0P 
 ```
 
 ## /chatgpt/store
@@ -346,7 +346,7 @@ failed to find Conversation with provided id: qrHe4o0P
 #### 错误响应示例
 
 ```javascript
-failed to find Conversation with provided id: ExpHJpdD 
+failed to find GPT3Conversation with provided id: ExpHJpdD 
 ```
 
 ## /chatgpt/share

@@ -1,7 +1,7 @@
 package auth
 
 import (
-	flgs "alice-chatgpt/flags"
+	global "alice-chatgpt/global"
 	"alice-chatgpt/util"
 	"container/list"
 	"crypto/sha256"
@@ -33,7 +33,7 @@ func NewNormalAuth(maxSize int) *NormalAuth {
 }
 
 func (auth *SimpleAuth) Verify(ctx *gin.Context) bool {
-	return ctx.GetHeader("token") == flgs.Token
+	return ctx.GetHeader("token") == global.Token
 }
 
 func (auth *NoneAuth) Verify(ctx *gin.Context) bool {
@@ -59,6 +59,6 @@ func (auth *NormalAuth) Verify(ctx *gin.Context) bool {
 		auth.uuidList.PushFront(uuid)
 	}
 	token := ctx.GetHeader("token")
-	trueToken := sha256.Sum256([]byte(flgs.Token + uuid))
+	trueToken := sha256.Sum256([]byte(global.Token + uuid))
 	return util.HexBuffToString(trueToken[:]) == token
 }

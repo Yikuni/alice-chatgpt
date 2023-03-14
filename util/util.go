@@ -1,18 +1,31 @@
 package util
 
 import (
+	"alice-chatgpt/global"
 	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func PostHeader(url string, msg []byte, headers map[string]string) (string, error) {
-	client := &http.Client{}
-	req, err := http.NewRequest("POST", url, strings.NewReader(string(msg)))
+func PostHeader(_url string, msg []byte, headers map[string]string) (string, error) {
+	var client *http.Client
+	if global.Proxy != "" {
+		proxyUrl, err := url.Parse(global.Proxy)
+		if err == nil {
+			client = &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyUrl)}}
+		} else {
+			fmt.Println("Proxy Failed, using non-proxy")
+		}
+	}
+	if client == nil {
+		client = &http.Client{}
+	}
+	req, err := http.NewRequest("POST", _url, strings.NewReader(string(msg)))
 	if err != nil {
 		return "", err
 	}
