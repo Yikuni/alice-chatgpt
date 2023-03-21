@@ -55,7 +55,7 @@ func (conv *GPT4Conversation) RequestBody() ([]byte, error) {
 		}
 		index++
 	}
-	jsonString, err := json.Marshal(&TurboRequest{Model: "gpt-3.5-turbo-0301", Messages: msgArray})
+	jsonString, err := json.Marshal(&TurboRequest{Model: "gpt-4", Messages: msgArray})
 	fmt.Println(string(jsonString))
 	if err != nil {
 		return nil, err
