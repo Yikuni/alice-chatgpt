@@ -40,6 +40,7 @@ func main() {
 	app := gin.Default()
 	app.POST("/chatgpt/create", create)
 	app.POST("/chatgpt/createTurbo", createTurbo)
+	app.POST("/chatgpt/createGPT4", createGPT4)
 	app.POST("/chatgpt/createRolePlay", createRolePlay)
 	app.POST("/chatgpt/chat", chat)
 	app.POST("/chatgpt/context", context)
@@ -212,6 +213,36 @@ func createTurbo(c *gin.Context) {
 		prompt = string(bodyBytes)
 	}
 	conv := conversation.CreateTuborConversation(prompt, AIName, humanName)
+	conversationMap[runes] = conv
+	c.String(200, runes)
+}
+
+func createGPT4(c *gin.Context) {
+	if !verify(c) {
+		return
+	}
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.String(500, err.Error())
+		return
+	}
+	if err != nil {
+		c.String(500, err.Error())
+		return
+	}
+	runes := util.RandStringRunes(idLength)
+	// 保证没有重复runes
+	for ; conversationMap[runes] != nil; runes = util.RandStringRunes(idLength) {
+	}
+	var (
+		prompt    = "You are ChatGPT, a large language model trained by OpenAI. Answer as concisely as possible."
+		AIName    = "user"
+		humanName = "assistant"
+	)
+	if len(bodyBytes) > 1 {
+		prompt = string(bodyBytes)
+	}
+	conv := conversation.CreateGPT4Conversation(prompt, AIName, humanName)
 	conversationMap[runes] = conv
 	c.String(200, runes)
 }
