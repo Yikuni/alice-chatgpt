@@ -1,7 +1,7 @@
 package auth
 
 import (
-	global "alice-chatgpt/global"
+	"alice-chatgpt/global"
 	"alice-chatgpt/util"
 	"container/list"
 	"crypto/sha256"

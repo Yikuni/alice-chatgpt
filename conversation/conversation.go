@@ -86,6 +86,8 @@ func GetAnswer(conv Conversation, question string) (string, error) {
 		_url = "https://api.openai.com/v1/completions"
 	case *TurboConversation:
 		_url = "https://api.openai.com/v1/chat/completions"
+	case *GPT4Conversation:
+		_url = "https://api.openai.com/v1/chat/completions"
 	}
 	result, err := util.PostHeader(_url, jsonString, headers)
 	if err != nil {
