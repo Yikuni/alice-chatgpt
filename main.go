@@ -43,6 +43,7 @@ func main() {
 	app.POST("/chatgpt/createGPT4", createGPT4)
 	app.POST("/chatgpt/createRolePlay", createRolePlay)
 	app.POST("/chatgpt/chat", chat)
+	app.POST("/chatgpt/rollback", rollbackConversation)
 	app.POST("/chatgpt/context", context)
 	app.POST("/chatgpt/finish", finish)
 	app.POST("/chatgpt/contextArray", contextArray)
@@ -293,6 +294,22 @@ func createRolePlay(c *gin.Context) {
 	c.String(200, runes)
 }
 
+func rollbackConversation(c *gin.Context) {
+	if !verify(c) {
+		return
+	}
+	conv := getConversation(c)
+	if conv == nil {
+		return
+	}
+	err := conversation.Rollback(conv)
+	if err != nil {
+		c.String(500, err.Error())
+		return
+	}
+	c.String(200, "Rollback Succeeded")
+}
+
 /*
 *
 获取一个会话的上文
@@ -303,6 +320,9 @@ func context(c *gin.Context) {
 	}
 
 	conv := getConversation(c)
+	if conv == nil {
+		return
+	}
 	c.String(200, conversation.PlainText(*conv))
 }
 

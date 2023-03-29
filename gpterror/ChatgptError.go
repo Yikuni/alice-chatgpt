@@ -1,4 +1,4 @@
-package ChatgptError
+package gpterror
 
 type ChatgptError struct {
 	Msg string

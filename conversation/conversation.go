@@ -1,8 +1,8 @@
 package conversation
 
 import (
-	"alice-chatgpt/ChatgptError"
 	"alice-chatgpt/global"
+	"alice-chatgpt/gpterror"
 	"alice-chatgpt/util"
 	"container/list"
 	"encoding/json"
@@ -62,7 +62,7 @@ type Conversation interface {
 
 func GetAnswer(conv Conversation, question string) (string, error) {
 	if !conv.GetAIAnswered() {
-		return "", ChatgptError.ChatgptError{Msg: "AI is thinking"}
+		return "", gpterror.ChatgptError{Msg: "AI is thinking"}
 	}
 	conv.SetAIAnswered(false)
 	conv.GetSentenceList().PushBack(question)
@@ -106,10 +106,10 @@ func GetAnswer(conv Conversation, question string) (string, error) {
 	}
 	if jsonObject.Exists("error") {
 		conv.GetSentenceList().Remove(conv.GetSentenceList().Back())
-		err = ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
+		err = gpterror.Err(jsonObject.S("error", "message").Data().(string))
 		fmt.Println(err.Error())
 		switch err.(type) {
-		case ChatgptError.ExceededQuotaException:
+		case gpterror.ExceededQuotaException:
 			if global.AutoRemoveErrorKeys {
 				findAndRemoveKey(key)
 			}
@@ -183,10 +183,10 @@ func SendDirectly(prompt string, settings *RequestSettings) (string, error) {
 	fmt.Println(jsonObject.String())
 	answerData := jsonObject.S("choices", "0", "text").Data()
 	if answerData == nil {
-		err = ChatgptError.Err(jsonObject.S("error", "message").Data().(string))
+		err = gpterror.Err(jsonObject.S("error", "message").Data().(string))
 		fmt.Println(err)
 		switch err.(type) {
-		case ChatgptError.ExceededQuotaException:
+		case gpterror.ExceededQuotaException:
 			if global.AutoRemoveErrorKeys {
 				findAndRemoveKey(key)
 			}
@@ -254,4 +254,18 @@ func PlainText(conv Conversation) string {
 		index++
 	}
 	return builder.String()
+}
+
+func Rollback(conv *Conversation) error {
+	sentenceList := (*conv).GetSentenceList()
+	length := sentenceList.Len()
+	if length < 2 {
+		return gpterror.ChatgptError{Msg: "Failed to rollback, dialog is empty"}
+	} else if length%2 != 0 {
+		return gpterror.ChatgptError{Msg: "Failed to rollback, cant rollback while AI is thinking"}
+	} else {
+		sentenceList.Remove(sentenceList.Back())
+		sentenceList.Remove(sentenceList.Back())
+		return nil
+	}
 }
