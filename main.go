@@ -128,12 +128,12 @@ func verify(c *gin.Context) bool {
 func getConversation(c *gin.Context) *conversation.Conversation {
 	id := c.GetHeader("conversation")
 	if id == "" {
-		c.String(500, "GPT3Conversation id is nil")
+		c.String(500, "conversation id is nil")
 		return nil
 	}
 	conv := conversationMap[id]
 	if conv == nil {
-		c.String(500, "failed to find GPT3Conversation with provided id: %s ", id)
+		c.String(500, "failed to find conversation with provided id: %s ", id)
 		return nil
 	}
 	return &conv
