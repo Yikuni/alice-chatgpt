@@ -240,15 +240,33 @@ func ToCStorage(conv Conversation, id string) *CStorage {
 	return &CStorage{id, conv.GetPrompt(), sentences}
 }
 func PlainText(conv Conversation) string {
+	isGpt3 := false
+	switch conv.(type) {
+	case *GPT3Conversation:
+	default:
+		isGpt3 = true
+	}
 	builder := new(strings.Builder)
 	builder.WriteString(conv.GetPrompt())
 	builder.WriteString("\n")
 	index := 0
 	for element := conv.GetSentenceList().Front(); element != nil; element = element.Next() {
 		if index%2 == 0 {
-			builder.WriteString(conv.GetHumanName())
+			if isGpt3 {
+				builder.WriteString("\n")
+				builder.WriteString(conv.GetHumanName())
+				builder.WriteString(": ")
+			} else {
+				builder.WriteString(conv.GetHumanName())
+			}
 		} else {
-			builder.WriteString(conv.GetAIName())
+			if isGpt3 {
+				builder.WriteString("\n")
+				builder.WriteString(conv.GetAIName())
+				builder.WriteString(": ")
+			} else {
+				builder.WriteString(conv.GetAIName())
+			}
 		}
 		builder.WriteString(element.Value.(string))
 		index++

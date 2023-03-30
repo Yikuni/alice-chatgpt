@@ -3,7 +3,6 @@ package conversation
 import (
 	"container/list"
 	"encoding/json"
-	"fmt"
 	"github.com/Jeffail/gabs/v2"
 	"time"
 )
@@ -56,7 +55,6 @@ func (conv *GPT4Conversation) RequestBody() ([]byte, error) {
 		index++
 	}
 	jsonString, err := json.Marshal(&TurboRequest{Model: "gpt-4", Messages: msgArray})
-	fmt.Println(string(jsonString))
 	if err != nil {
 		return nil, err
 	} else {
@@ -64,7 +62,6 @@ func (conv *GPT4Conversation) RequestBody() ([]byte, error) {
 	}
 }
 func (conv *GPT4Conversation) SolveResponse(jsonObject *gabs.Container) string {
-	fmt.Println(jsonObject.String())
 	return jsonObject.S("choices", "0", "message", "content").Data().(string)
 }
 

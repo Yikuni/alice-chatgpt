@@ -44,6 +44,7 @@ func main() {
 	app.POST("/chatgpt/createRolePlay", createRolePlay)
 	app.POST("/chatgpt/chat", chat)
 	app.POST("/chatgpt/rollback", rollbackConversation)
+	app.POST("/chatgpt/regenerate", regenerate)
 	app.POST("/chatgpt/context", context)
 	app.POST("/chatgpt/finish", finish)
 	app.POST("/chatgpt/contextArray", contextArray)
@@ -60,7 +61,7 @@ func main() {
 				duration := now - v.GetLastModify()
 				if duration > 1200 || duration > 300 && v.GetSentenceList().Len() <= 2 {
 					delete(conversationMap, k)
-					fmt.Printf("GPT3Conversation with id: %s expired", k)
+					fmt.Printf("Conversation with id: %s expired", k)
 				}
 			}
 		}
@@ -310,6 +311,31 @@ func rollbackConversation(c *gin.Context) {
 	c.String(200, "Rollback Succeeded")
 }
 
+// 重新生成答案
+func regenerate(c *gin.Context) {
+	if !verify(c) {
+		return
+	}
+	conv := getConversation(c)
+	if conv == nil {
+		return
+	}
+	sentenceList := (*conv).GetSentenceList()
+	sentenceList.Remove(sentenceList.Back())
+	questionElement := sentenceList.Back()
+	sentenceList.Remove(questionElement)
+	answer, err := conversation.GetAnswer(*conv, questionElement.Value.(string))
+	if err != nil {
+		errorMessage := err.Error()
+		if errorMessage == "" {
+			errorMessage = "exceeded max tokens"
+		}
+		c.String(500, errorMessage)
+		return
+	}
+	c.String(200, answer)
+}
+
 /*
 *
 获取一个会话的上文
@@ -397,7 +423,7 @@ func finish(c *gin.Context) {
 		return
 	}
 	delete(conversationMap, c.GetHeader("conversation"))
-	c.String(200, "GPT3Conversation finished")
+	c.String(200, "Conversation finished")
 }
 
 func contextArray(c *gin.Context) {
