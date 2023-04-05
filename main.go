@@ -66,12 +66,14 @@ func main() {
 			}
 		}
 	}()
-	go func() {
-		for {
-			time.Sleep(time.Minute)
-			qps = 0
-		}
-	}()
+	if global.LimitPerMin > 0 {
+		go func() {
+			for {
+				time.Sleep(time.Minute)
+				qps = 0
+			}
+		}()
+	}
 	dbEnabled := false
 	if db == "badger" {
 		daoInstance = &dao.BadgerDao{}
@@ -502,6 +504,9 @@ func summary(c *gin.Context) {
 }
 
 func limit(c *gin.Context) bool {
+	if global.LimitPerMin <= 0 {
+		return true
+	}
 	if qps > global.LimitPerMin {
 		c.String(502, "Server busy")
 		return false

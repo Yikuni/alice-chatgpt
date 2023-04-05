@@ -61,6 +61,9 @@ type Conversation interface {
 }
 
 func GetAnswer(conv Conversation, question string) (string, error) {
+	if question == "" {
+		return "", gpterror.ChatgptError{Msg: "Question can not be empty"}
+	}
 	if !conv.GetAIAnswered() {
 		return "", gpterror.ChatgptError{Msg: "AI is thinking"}
 	}
