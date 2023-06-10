@@ -10,7 +10,7 @@ type ExceededQuotaException struct {
 }
 
 func Err(msg string) error {
-	if msg == "You exceeded your current quota,please check your plan and billing details. " {
+	if msg == "You exceeded your current quota, please check your plan and billing details." {
 		return ExceededQuotaException{ChatgptError{Msg: msg}}
 	}
 	return ChatgptError{Msg: msg}

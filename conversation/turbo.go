@@ -58,9 +58,9 @@ func (conv *TurboConversation) RequestBody() ([]byte, error) {
 	index := 1
 	for element := conv.SentenceList.Front(); element != nil; element = element.Next() {
 		if index%2 == 0 {
-			msgArray[index] = RoleContent{Role: conv.HumanName, Content: element.Value.(string)}
+			msgArray[index] = RoleContent{Role: "user", Content: element.Value.(string)}
 		} else {
-			msgArray[index] = RoleContent{Role: conv.AIName, Content: element.Value.(string)}
+			msgArray[index] = RoleContent{Role: "assistant", Content: element.Value.(string)}
 		}
 		index++
 	}

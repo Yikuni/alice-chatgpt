@@ -47,10 +47,6 @@ func CreateCustomConversation(prompt string, settings *RequestSettings, AIName s
 	return &GPT3Conversation{Prompt: prompt, SentenceList: list.New(), AIAnswered: true, LastModify: time.Now().Unix(), RequestSettings: settings, AIName: AIName, HumanName: HumanName}
 }
 
-func CreateQuickConversation(prompt string, sentenceList *list.List) *GPT3Conversation {
-	return &GPT3Conversation{Prompt: prompt, SentenceList: sentenceList, AIAnswered: true, LastModify: time.Now().Unix(), RequestSettings: QuickChatSettings, AIName: "\nAI: ", HumanName: "\nHuman: "}
-}
-
 // RequestBody
 /**
 Get Request body

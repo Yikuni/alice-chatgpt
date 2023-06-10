@@ -33,6 +33,7 @@ func main() {
 	flag.StringVar(&db, "db", "badger", "database url; use badger if undefined, now support only badger")
 	flag.BoolVar(&global.AutoRemoveErrorKeys, "a", true, "auto remove key when key is above the quota")
 	flag.IntVar(&global.LimitPerMin, "l", 500, "limit usage per minute")
+	flag.Int64Var(&global.ConvDuration, "d", 1800, "time to live for conversation")
 	flag.StringVar(&global.AuthType, "auth", "simple", "auth type: none, simple, normal. simple as default")
 	flag.StringVar(&global.Proxy, "proxy", "", "http proxy")
 	flag.Parse()
@@ -59,7 +60,7 @@ func main() {
 			for k, v := range conversationMap {
 				// 如果一定时间内没使用, 或者5分钟内仍然只有2句话
 				duration := now - v.GetLastModify()
-				if duration > 1200 || duration > 300 && v.GetSentenceList().Len() <= 2 {
+				if duration > global.ConvDuration || duration > global.ConvDuration/2 && v.GetSentenceList().Len() <= 2 {
 					delete(conversationMap, k)
 					fmt.Printf("Conversation with id: %s expired", k)
 				}
@@ -210,8 +211,8 @@ func createTurbo(c *gin.Context) {
 	}
 	var (
 		prompt    = "You are ChatGPT, a large language model trained by OpenAI. Answer as concisely as possible."
-		AIName    = "user"
-		humanName = "assistant"
+		AIName    = "assistant"
+		humanName = "user"
 	)
 	if len(bodyBytes) > 1 {
 		prompt = string(bodyBytes)
@@ -403,7 +404,15 @@ func quickAnswer(c *gin.Context) {
 	for _, container := range jsonContainer.S("examples", "*").Children() {
 		examples.PushBack(container.Data().(string))
 	}
-	conv := conversation.CreateQuickConversation(prompt, examples)
+	var conv conversation.Conversation
+	convType := jsonContainer.S("convType").Data().(string)
+	if convType == "gpt3" {
+		conv = conversation.CreateQuickConversation(prompt, examples)
+	} else if convType == "gpt4" {
+		conv = conversation.CreateQuickConversationGPT4(prompt, examples)
+	} else {
+		conv = conversation.CreateQuickConversationTurbo(prompt, examples)
+	}
 	answer, err := conversation.GetAnswer(conv, question)
 	if err != nil {
 		errorMessage := err.Error()

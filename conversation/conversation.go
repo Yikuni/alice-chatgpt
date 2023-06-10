@@ -221,8 +221,7 @@ func FromJsonBytes(marshal []byte) (*CStorage, error) {
 
 func findAndRemoveKey(key string) {
 	if len(Keys) <= 1 {
-		fmt.Println("No Valid Keys, server stopped")
-		os.Exit(0)
+		fmt.Println("=================  No Valid Keys!  =================")
 	}
 	for i := range Keys {
 		if Keys[i] == key {
@@ -289,4 +288,16 @@ func Rollback(conv *Conversation) error {
 		sentenceList.Remove(sentenceList.Back())
 		return nil
 	}
+}
+
+func CreateQuickConversation(prompt string, sentenceList *list.List) *GPT3Conversation {
+	return &GPT3Conversation{Prompt: prompt, SentenceList: sentenceList, AIAnswered: true, LastModify: time.Now().Unix(), RequestSettings: QuickChatSettings, AIName: "\nAI: ", HumanName: "\nHuman: "}
+}
+
+func CreateQuickConversationTurbo(prompt string, sentenceList *list.List) *TurboConversation {
+	return &TurboConversation{Prompt: prompt, SentenceList: sentenceList, AIAnswered: true, LastModify: time.Now().Unix(), AIName: "assistant", HumanName: "user"}
+}
+
+func CreateQuickConversationGPT4(prompt string, sentenceList *list.List) *GPT4Conversation {
+	return &GPT4Conversation{Prompt: prompt, SentenceList: sentenceList, AIAnswered: true, LastModify: time.Now().Unix(), AIName: "assistant", HumanName: "user"}
 }
