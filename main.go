@@ -398,14 +398,26 @@ func quickAnswer(c *gin.Context) {
 		c.String(500, err.Error())
 		return
 	}
-	prompt := jsonContainer.S("prompt").Data().(string)
-	question := jsonContainer.S("question").Data().(string)
+	var prompt string
+	var question string
+	var convType string
+	if jsonContainer.Exists("prompt") {
+		prompt = jsonContainer.S("prompt").Data().(string)
+	}
+	if jsonContainer.Exists("question") {
+		question = jsonContainer.S("question").Data().(string)
+	} else {
+		c.String(500, "Question can't be null")
+		return
+	}
+	if jsonContainer.Exists("convType") {
+		convType = jsonContainer.S("convType").Data().(string)
+	}
 	examples := list.New()
 	for _, container := range jsonContainer.S("examples", "*").Children() {
 		examples.PushBack(container.Data().(string))
 	}
 	var conv conversation.Conversation
-	convType := jsonContainer.S("convType").Data().(string)
 	if convType == "gpt3" {
 		conv = conversation.CreateQuickConversation(prompt, examples)
 	} else if convType == "gpt4" {
