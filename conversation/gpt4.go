@@ -14,6 +14,7 @@ type GPT4Conversation struct {
 	LastModify   int64      // 上次回复的时间戳
 	AIName       string
 	HumanName    string
+	Stream       bool
 	Conversation
 }
 
@@ -54,7 +55,7 @@ func (conv *GPT4Conversation) RequestBody() ([]byte, error) {
 		}
 		index++
 	}
-	jsonString, err := json.Marshal(&TurboRequest{Model: "gpt-4", Messages: msgArray})
+	jsonString, err := json.Marshal(&TurboRequest{Model: "gpt-4", Messages: msgArray, Stream: conv.GetStreamFlag()})
 	if err != nil {
 		return nil, err
 	} else {
@@ -65,6 +66,9 @@ func (conv *GPT4Conversation) SolveResponse(jsonObject *gabs.Container) string {
 	return jsonObject.S("choices", "0", "message", "content").Data().(string)
 }
 
-func CreateGPT4Conversation(prompt string, AIName string, HumanName string) *GPT4Conversation {
-	return &GPT4Conversation{Prompt: prompt, SentenceList: list.New(), AIAnswered: true, LastModify: time.Now().Unix(), AIName: AIName, HumanName: HumanName}
+func CreateGPT4Conversation(prompt string, AIName string, HumanName string, stream bool) *GPT4Conversation {
+	return &GPT4Conversation{Prompt: prompt, SentenceList: list.New(), AIAnswered: true, LastModify: time.Now().Unix(), AIName: AIName, HumanName: HumanName, Stream: stream}
+}
+func (conv *GPT4Conversation) GetStreamFlag() bool {
+	return conv.Stream
 }

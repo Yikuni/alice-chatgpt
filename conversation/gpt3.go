@@ -69,3 +69,7 @@ func (conv *GPT3Conversation) RequestBody() ([]byte, error) {
 func (conv *GPT3Conversation) SolveResponse(jsonObject *gabs.Container) string {
 	return jsonObject.S("choices", "0", "text").Data().(string)
 }
+
+func (conv *GPT3Conversation) GetStreamFlag() bool {
+	return false
+}

@@ -44,6 +44,7 @@ func main() {
 	app.POST("/chatgpt/createGPT4", createGPT4)
 	app.POST("/chatgpt/createRolePlay", createRolePlay)
 	app.POST("/chatgpt/chat", chat)
+	app.POST("/chatgpt/chats", chatStream)
 	app.POST("/chatgpt/rollback", rollbackConversation)
 	app.POST("/chatgpt/regenerate", regenerate)
 	app.POST("/chatgpt/context", context)
@@ -210,14 +211,27 @@ func createTurbo(c *gin.Context) {
 	for ; conversationMap[runes] != nil; runes = util.RandStringRunes(idLength) {
 	}
 	var (
-		prompt    = "You are ChatGPT, a large language model trained by OpenAI. Answer as concisely as possible."
+		prompt    = ""
 		AIName    = "assistant"
 		humanName = "user"
+		stream    = false
 	)
 	if len(bodyBytes) > 1 {
-		prompt = string(bodyBytes)
+		jsonObject, err := gabs.ParseJSON(bodyBytes)
+		if err != nil {
+			c.String(500, "Failed to read request body")
+			return
+		}
+		if jsonObject.Exists("prompt") {
+			prompt = jsonObject.S("prompt").Data().(string)
+			fmt.Println(prompt)
+		}
+		if jsonObject.Exists("stream") {
+			stream = jsonObject.S("stream").Data().(bool)
+			fmt.Println(stream)
+		}
 	}
-	conv := conversation.CreateTuborConversation(prompt, AIName, humanName)
+	conv := conversation.CreateTuborConversation(prompt, AIName, humanName, stream)
 	conversationMap[runes] = conv
 	c.String(200, runes)
 }
@@ -247,7 +261,7 @@ func createGPT4(c *gin.Context) {
 	if len(bodyBytes) > 1 {
 		prompt = string(bodyBytes)
 	}
-	conv := conversation.CreateGPT4Conversation(prompt, AIName, humanName)
+	conv := conversation.CreateGPT4Conversation(prompt, AIName, humanName, false)
 	conversationMap[runes] = conv
 	c.String(200, runes)
 }
@@ -355,6 +369,31 @@ func context(c *gin.Context) {
 	c.String(200, conversation.PlainText(*conv))
 }
 
+func chatStream(c *gin.Context) {
+	if !verify(c) {
+		return
+	}
+	conv := getConversation(c)
+	if conv == nil {
+		return
+	}
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.String(500, err.Error())
+		return
+	}
+	body := string(bodyBytes)
+	answer, err := conversation.CallStreamAPI(*conv, body, c)
+	if err != nil {
+		errorMessage := err.Error()
+		if errorMessage == "" {
+			errorMessage = "exceeded max tokens"
+		}
+		c.String(500, errorMessage)
+		return
+	}
+	c.String(200, answer)
+}
 func chat(c *gin.Context) {
 	if !verify(c) {
 		return
@@ -369,6 +408,11 @@ func chat(c *gin.Context) {
 		return
 	}
 	body := string(bodyBytes)
+	if (*conv).GetStreamFlag() {
+		// 如果是steam形式的
+		conversation.CallStreamAPI(*conv, body, c)
+		return
+	}
 	answer, err := conversation.GetAnswer(*conv, body)
 	if err != nil {
 		errorMessage := err.Error()

@@ -48,6 +48,7 @@ func init() {
 }
 
 type Conversation interface {
+	GetStreamFlag() bool
 	GetSentenceList() *list.List
 	GetPrompt() string
 	GetHumanName() string

@@ -14,6 +14,7 @@ type TurboConversation struct {
 	LastModify   int64      // 上次回复的时间戳
 	AIName       string
 	HumanName    string
+	Stream       bool
 	Conversation
 }
 
@@ -25,6 +26,7 @@ type RoleContent struct {
 type TurboRequest struct {
 	Model    string        `json:"model"`
 	Messages []RoleContent `json:"messages"`
+	Stream   bool          `json:"stream"`
 }
 
 func (conv *TurboConversation) GetHumanName() string {
@@ -64,7 +66,7 @@ func (conv *TurboConversation) RequestBody() ([]byte, error) {
 		}
 		index++
 	}
-	jsonString, err := json.Marshal(&TurboRequest{Model: "gpt-3.5-turbo-0301", Messages: msgArray})
+	jsonString, err := json.Marshal(&TurboRequest{Model: "gpt-3.5-turbo-0613", Messages: msgArray, Stream: conv.GetStreamFlag()})
 	if err != nil {
 		return nil, err
 	} else {
@@ -75,6 +77,10 @@ func (conv *TurboConversation) SolveResponse(jsonObject *gabs.Container) string 
 	return jsonObject.S("choices", "0", "message", "content").Data().(string)
 }
 
-func CreateTuborConversation(prompt string, AIName string, HumanName string) *TurboConversation {
-	return &TurboConversation{Prompt: prompt, SentenceList: list.New(), AIAnswered: true, LastModify: time.Now().Unix(), AIName: AIName, HumanName: HumanName}
+func CreateTuborConversation(prompt string, AIName string, HumanName string, stream bool) *TurboConversation {
+	return &TurboConversation{Prompt: prompt, SentenceList: list.New(), AIAnswered: true, LastModify: time.Now().Unix(), AIName: AIName, HumanName: HumanName, Stream: stream}
+}
+
+func (conv *TurboConversation) GetStreamFlag() bool {
+	return conv.Stream
 }
