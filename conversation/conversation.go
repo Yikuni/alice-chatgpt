@@ -291,14 +291,14 @@ func Rollback(conv *Conversation) error {
 	}
 }
 
-func CreateQuickConversation(prompt string, sentenceList *list.List) *GPT3Conversation {
+func CreateQuickConversation(prompt string, sentenceList *list.List, stream bool) *GPT3Conversation {
 	return &GPT3Conversation{Prompt: prompt, SentenceList: sentenceList, AIAnswered: true, LastModify: time.Now().Unix(), RequestSettings: QuickChatSettings, AIName: "\nAI: ", HumanName: "\nHuman: "}
 }
 
-func CreateQuickConversationTurbo(prompt string, sentenceList *list.List) *TurboConversation {
+func CreateQuickConversationTurbo(prompt string, sentenceList *list.List, stream bool) *TurboConversation {
 	return &TurboConversation{Prompt: prompt, SentenceList: sentenceList, AIAnswered: true, LastModify: time.Now().Unix(), AIName: "assistant", HumanName: "user"}
 }
 
-func CreateQuickConversationGPT4(prompt string, sentenceList *list.List) *GPT4Conversation {
+func CreateQuickConversationGPT4(prompt string, sentenceList *list.List, stream bool) *GPT4Conversation {
 	return &GPT4Conversation{Prompt: prompt, SentenceList: sentenceList, AIAnswered: true, LastModify: time.Now().Unix(), AIName: "assistant", HumanName: "user"}
 }

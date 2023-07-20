@@ -341,16 +341,25 @@ func regenerate(c *gin.Context) {
 	sentenceList.Remove(sentenceList.Back())
 	questionElement := sentenceList.Back()
 	sentenceList.Remove(questionElement)
-	answer, err := conversation.GetAnswer(*conv, questionElement.Value.(string))
-	if err != nil {
-		errorMessage := err.Error()
-		if errorMessage == "" {
-			errorMessage = "exceeded max tokens"
+	if (*conv).GetStreamFlag() {
+		_, err := conversation.CallStreamAPI(*conv, questionElement.Value.(string), c)
+		if err != nil {
+			c.String(500, err.Error())
+			return
 		}
-		c.String(500, errorMessage)
-		return
+	} else {
+		answer, err := conversation.GetAnswer(*conv, questionElement.Value.(string))
+		if err != nil {
+			errorMessage := err.Error()
+			if errorMessage == "" {
+				errorMessage = "exceeded max tokens"
+			}
+			c.String(500, errorMessage)
+			return
+		}
+		c.String(200, answer)
 	}
-	c.String(200, answer)
+
 }
 
 /*
@@ -373,17 +382,21 @@ func chatStream(c *gin.Context) {
 	if !verify(c) {
 		return
 	}
-	conv := getConversation(c)
-	if conv == nil {
-		return
+	var conv conversation.Conversation
+	id := c.GetHeader("conversation")
+	if id == "" {
+		conv = conversation.CreateTuborConversation("", "assistant", "user", true)
+	} else {
+		conv = *getConversation(c)
 	}
+
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.String(500, err.Error())
 		return
 	}
 	body := string(bodyBytes)
-	answer, err := conversation.CallStreamAPI(*conv, body, c)
+	answer, err := conversation.CallStreamAPI(conv, body, c)
 	if err != nil {
 		errorMessage := err.Error()
 		if errorMessage == "" {
@@ -445,8 +458,12 @@ func quickAnswer(c *gin.Context) {
 	var prompt string
 	var question string
 	var convType string
+	var stream = true
 	if jsonContainer.Exists("prompt") {
 		prompt = jsonContainer.S("prompt").Data().(string)
+	}
+	if jsonContainer.Exists("stream") {
+		stream = jsonContainer.S("stream").Data().(bool)
 	}
 	if jsonContainer.Exists("question") {
 		question = jsonContainer.S("question").Data().(string)
@@ -463,22 +480,30 @@ func quickAnswer(c *gin.Context) {
 	}
 	var conv conversation.Conversation
 	if convType == "gpt3" {
-		conv = conversation.CreateQuickConversation(prompt, examples)
+		conv = conversation.CreateQuickConversation(prompt, examples, stream)
 	} else if convType == "gpt4" {
-		conv = conversation.CreateQuickConversationGPT4(prompt, examples)
+		conv = conversation.CreateQuickConversationGPT4(prompt, examples, stream)
 	} else {
-		conv = conversation.CreateQuickConversationTurbo(prompt, examples)
+		conv = conversation.CreateQuickConversationTurbo(prompt, examples, stream)
 	}
-	answer, err := conversation.GetAnswer(conv, question)
-	if err != nil {
-		errorMessage := err.Error()
-		if errorMessage == "" {
-			errorMessage = "exceeded max tokens"
+	if stream {
+		_, err := conversation.CallStreamAPI(conv, question, c)
+		if err != nil {
+			c.String(500, err.Error())
+			return
 		}
-		c.String(500, errorMessage)
-		return
+	} else {
+		answer, err := conversation.GetAnswer(conv, question)
+		if err != nil {
+			errorMessage := err.Error()
+			if errorMessage == "" {
+				errorMessage = "exceeded max tokens"
+			}
+			c.String(500, errorMessage)
+			return
+		}
+		c.String(200, answer)
 	}
-	c.String(200, answer)
 }
 
 func finish(c *gin.Context) {
