@@ -44,7 +44,6 @@ func main() {
 	app.POST("/chatgpt/createGPT4", createGPT4)
 	app.POST("/chatgpt/createRolePlay", createRolePlay)
 	app.POST("/chatgpt/chat", chat)
-	app.POST("/chatgpt/chats", chatStream)
 	app.POST("/chatgpt/rollback", rollbackConversation)
 	app.POST("/chatgpt/regenerate", regenerate)
 	app.POST("/chatgpt/context", context)
@@ -378,7 +377,7 @@ func context(c *gin.Context) {
 	c.String(200, conversation.PlainText(*conv))
 }
 
-func chatStream(c *gin.Context) {
+func chat(c *gin.Context) {
 	if !verify(c) {
 		return
 	}
@@ -389,29 +388,6 @@ func chatStream(c *gin.Context) {
 	} else {
 		conv = *getConversation(c)
 	}
-
-	bodyBytes, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		c.String(500, err.Error())
-		return
-	}
-	body := string(bodyBytes)
-	answer, err := conversation.CallStreamAPI(conv, body, c)
-	if err != nil {
-		errorMessage := err.Error()
-		if errorMessage == "" {
-			errorMessage = "exceeded max tokens"
-		}
-		c.String(500, errorMessage)
-		return
-	}
-	c.String(200, answer)
-}
-func chat(c *gin.Context) {
-	if !verify(c) {
-		return
-	}
-	conv := getConversation(c)
 	if conv == nil {
 		return
 	}
@@ -421,12 +397,15 @@ func chat(c *gin.Context) {
 		return
 	}
 	body := string(bodyBytes)
-	if (*conv).GetStreamFlag() {
+	if (conv).GetStreamFlag() {
 		// 如果是steam形式的
-		conversation.CallStreamAPI(*conv, body, c)
+		_, err := conversation.CallStreamAPI(conv, body, c)
+		if err != nil {
+			c.String(500, err.Error())
+		}
 		return
 	}
-	answer, err := conversation.GetAnswer(*conv, body)
+	answer, err := conversation.GetAnswer(conv, body)
 	if err != nil {
 		errorMessage := err.Error()
 		if errorMessage == "" {

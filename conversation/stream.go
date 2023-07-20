@@ -88,10 +88,10 @@ func CallStreamAPI(conv Conversation, question string, c *gin.Context) (string, 
 			return "", err
 		}
 		if strings.HasPrefix(line, "data:") {
-			line = strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+			line = strings.TrimPrefix(line, "data:")
 			//fmt.Println("Received data:", line)
 
-			if line == "[DONE]" {
+			if strings.TrimSpace(line) == "[DONE]" {
 				conv.GetSentenceList().PushBack(answer)
 				msg := fmt.Sprintf("data: %s\n\n", "[DONE]")
 				_, err := c.Writer.Write([]byte(msg))
