@@ -344,6 +344,7 @@ func regenerate(c *gin.Context) {
 		_, err := conversation.CallStreamAPI(*conv, questionElement.Value.(string), c)
 		if err != nil {
 			c.String(500, err.Error())
+			fmt.Println(err.Error())
 			return
 		}
 	} else {
@@ -402,6 +403,7 @@ func chat(c *gin.Context) {
 		_, err := conversation.CallStreamAPI(conv, body, c)
 		if err != nil {
 			c.String(500, err.Error())
+			fmt.Println(err.Error())
 		}
 		return
 	}
@@ -469,6 +471,7 @@ func quickAnswer(c *gin.Context) {
 		_, err := conversation.CallStreamAPI(conv, question, c)
 		if err != nil {
 			c.String(500, err.Error())
+			fmt.Println(err.Error())
 			return
 		}
 	} else {

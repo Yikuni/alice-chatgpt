@@ -84,8 +84,8 @@ func CallStreamAPI(conv Conversation, question string, c *gin.Context) (string, 
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Println("读取时出错")
-			return "", err
+			fmt.Println("读取时出错, 可能是账号欠费")
+			return "", gpterror.Err("You exceeded your current quota, please check your plan and billing details.")
 		}
 		if strings.HasPrefix(line, "data:") {
 			line = strings.TrimPrefix(line, "data:")
