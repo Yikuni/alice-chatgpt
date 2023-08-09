@@ -382,15 +382,15 @@ func chat(c *gin.Context) {
 	if !verify(c) {
 		return
 	}
+	if !limit(c) {
+		return
+	}
 	var conv conversation.Conversation
 	id := c.GetHeader("conversation")
 	if id == "" {
 		conv = conversation.CreateTuborConversation("", "assistant", "user", true)
 	} else {
 		conv = *getConversation(c)
-	}
-	if conv == nil {
-		return
 	}
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {

@@ -85,7 +85,12 @@ func CallStreamAPI(conv Conversation, question string, c *gin.Context) (string, 
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Println("读取时出错, 可能是账号欠费")
-			return "", gpterror.Err("You exceeded your current quota, please check your plan and billing details.")
+			_, err2 := c.Writer.Write([]byte("Error"))
+			if err2 != nil {
+				return "", err
+			}
+			c.Writer.Flush()
+			return "", gpterror.Err("data: You exceeded your current quota, please check your plan and billing details.\n\n")
 		}
 		if strings.HasPrefix(line, "data:") {
 			line = strings.TrimPrefix(line, "data:")
@@ -105,6 +110,7 @@ func CallStreamAPI(conv Conversation, question string, c *gin.Context) (string, 
 			jsonObject, err := gabs.ParseJSON([]byte(line))
 			if err != nil {
 				fmt.Println("解析时出错, line为" + line)
+
 				return "", err
 			}
 			if jsonObject.Exists("choices") {
