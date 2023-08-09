@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func PostHeader(_url string, msg []byte, headers map[string]string) (string, error) {
+func GetClient() *http.Client {
 	var client *http.Client
 	if global.Proxy != "" {
 		proxyUrl, err := url.Parse(global.Proxy)
@@ -25,6 +25,10 @@ func PostHeader(_url string, msg []byte, headers map[string]string) (string, err
 	if client == nil {
 		client = &http.Client{}
 	}
+	return client
+}
+func PostHeader(_url string, msg []byte, headers map[string]string) (string, error) {
+	client := GetClient()
 	req, err := http.NewRequest("POST", _url, strings.NewReader(string(msg)))
 	if err != nil {
 		return "", err

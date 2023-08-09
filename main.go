@@ -210,14 +210,27 @@ func createTurbo(c *gin.Context) {
 	for ; conversationMap[runes] != nil; runes = util.RandStringRunes(idLength) {
 	}
 	var (
-		prompt    = "You are ChatGPT, a large language model trained by OpenAI. Answer as concisely as possible."
+		prompt    = ""
 		AIName    = "assistant"
 		humanName = "user"
+		stream    = false
 	)
 	if len(bodyBytes) > 1 {
-		prompt = string(bodyBytes)
+		jsonObject, err := gabs.ParseJSON(bodyBytes)
+		if err != nil {
+			c.String(500, "Failed to read request body")
+			return
+		}
+		if jsonObject.Exists("prompt") {
+			prompt = jsonObject.S("prompt").Data().(string)
+			fmt.Println(prompt)
+		}
+		if jsonObject.Exists("stream") {
+			stream = jsonObject.S("stream").Data().(bool)
+			fmt.Println(stream)
+		}
 	}
-	conv := conversation.CreateTuborConversation(prompt, AIName, humanName)
+	conv := conversation.CreateTuborConversation(prompt, AIName, humanName, stream)
 	conversationMap[runes] = conv
 	c.String(200, runes)
 }
@@ -247,7 +260,7 @@ func createGPT4(c *gin.Context) {
 	if len(bodyBytes) > 1 {
 		prompt = string(bodyBytes)
 	}
-	conv := conversation.CreateGPT4Conversation(prompt, AIName, humanName)
+	conv := conversation.CreateGPT4Conversation(prompt, AIName, humanName, false)
 	conversationMap[runes] = conv
 	c.String(200, runes)
 }
@@ -327,16 +340,26 @@ func regenerate(c *gin.Context) {
 	sentenceList.Remove(sentenceList.Back())
 	questionElement := sentenceList.Back()
 	sentenceList.Remove(questionElement)
-	answer, err := conversation.GetAnswer(*conv, questionElement.Value.(string))
-	if err != nil {
-		errorMessage := err.Error()
-		if errorMessage == "" {
-			errorMessage = "exceeded max tokens"
+	if (*conv).GetStreamFlag() {
+		_, err := conversation.CallStreamAPI(*conv, questionElement.Value.(string), c)
+		if err != nil {
+			c.String(500, err.Error())
+			fmt.Println(err.Error())
+			return
 		}
-		c.String(500, errorMessage)
-		return
+	} else {
+		answer, err := conversation.GetAnswer(*conv, questionElement.Value.(string))
+		if err != nil {
+			errorMessage := err.Error()
+			if errorMessage == "" {
+				errorMessage = "exceeded max tokens"
+			}
+			c.String(500, errorMessage)
+			return
+		}
+		c.String(200, answer)
 	}
-	c.String(200, answer)
+
 }
 
 /*
@@ -359,9 +382,15 @@ func chat(c *gin.Context) {
 	if !verify(c) {
 		return
 	}
-	conv := getConversation(c)
-	if conv == nil {
+	if !limit(c) {
 		return
+	}
+	var conv conversation.Conversation
+	id := c.GetHeader("conversation")
+	if id == "" {
+		conv = conversation.CreateTuborConversation("", "assistant", "user", true)
+	} else {
+		conv = *getConversation(c)
 	}
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -369,7 +398,16 @@ func chat(c *gin.Context) {
 		return
 	}
 	body := string(bodyBytes)
-	answer, err := conversation.GetAnswer(*conv, body)
+	if (conv).GetStreamFlag() {
+		// 如果是steam形式的
+		_, err := conversation.CallStreamAPI(conv, body, c)
+		if err != nil {
+			c.String(500, err.Error())
+			fmt.Println(err.Error())
+		}
+		return
+	}
+	answer, err := conversation.GetAnswer(conv, body)
 	if err != nil {
 		errorMessage := err.Error()
 		if errorMessage == "" {
@@ -401,8 +439,12 @@ func quickAnswer(c *gin.Context) {
 	var prompt string
 	var question string
 	var convType string
+	var stream = true
 	if jsonContainer.Exists("prompt") {
 		prompt = jsonContainer.S("prompt").Data().(string)
+	}
+	if jsonContainer.Exists("stream") {
+		stream = jsonContainer.S("stream").Data().(bool)
 	}
 	if jsonContainer.Exists("question") {
 		question = jsonContainer.S("question").Data().(string)
@@ -419,22 +461,31 @@ func quickAnswer(c *gin.Context) {
 	}
 	var conv conversation.Conversation
 	if convType == "gpt3" {
-		conv = conversation.CreateQuickConversation(prompt, examples)
+		conv = conversation.CreateQuickConversation(prompt, examples, stream)
 	} else if convType == "gpt4" {
-		conv = conversation.CreateQuickConversationGPT4(prompt, examples)
+		conv = conversation.CreateQuickConversationGPT4(prompt, examples, stream)
 	} else {
-		conv = conversation.CreateQuickConversationTurbo(prompt, examples)
+		conv = conversation.CreateQuickConversationTurbo(prompt, examples, stream)
 	}
-	answer, err := conversation.GetAnswer(conv, question)
-	if err != nil {
-		errorMessage := err.Error()
-		if errorMessage == "" {
-			errorMessage = "exceeded max tokens"
+	if stream {
+		_, err := conversation.CallStreamAPI(conv, question, c)
+		if err != nil {
+			c.String(500, err.Error())
+			fmt.Println(err.Error())
+			return
 		}
-		c.String(500, errorMessage)
-		return
+	} else {
+		answer, err := conversation.GetAnswer(conv, question)
+		if err != nil {
+			errorMessage := err.Error()
+			if errorMessage == "" {
+				errorMessage = "exceeded max tokens"
+			}
+			c.String(500, errorMessage)
+			return
+		}
+		c.String(200, answer)
 	}
-	c.String(200, answer)
 }
 
 func finish(c *gin.Context) {
